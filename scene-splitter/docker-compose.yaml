@@ -1,0 +1,15 @@
+services:
+  scene_splitter:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: scene_splitter_service
+    ports:
+      - "7001:8000"
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
