@@ -4,4 +4,5 @@ pydantic
 python-multipart
 pdfminer.six>=20201018
 PyPDF2>=3.0.1
-
+celery[rabbitmq]
+python-dotenv

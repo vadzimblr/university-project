@@ -11,5 +11,22 @@ services:
     env_file:
       - .env
     restart: unless-stopped
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    networks:
+      - app-net
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: scene_splitter_worker
+    command: celery -A app.utils.celery worker --loglevel=info --queues=pdf_tasks
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    networks:
+      - app-net
+
+networks:
+  app-net:
+    external: true
