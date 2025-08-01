@@ -19,7 +19,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     container_name: scene_splitter_worker
-    command: celery -A app.utils.celery worker --loglevel=info --queues=pdf_tasks
+    command: celery -A app.utils.celery worker --loglevel=info
     volumes:
       - .:/app
     env_file:
