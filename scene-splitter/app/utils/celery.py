@@ -22,6 +22,8 @@ celery_app = Celery(
     backend="rpc://",
     include=[
         "app.services.tasks.extract_text_task",
+        "app.services.tasks.scene_splitting_task",
+        "app.services.tasks.save_scenes_task",
     ]
 )
 
@@ -51,6 +53,8 @@ celery_app.conf.update(
 
 celery_app.conf.task_routes.update({
     'extract_text_task': {'queue': 'pdf_tasks', 'routing_key': 'tasks.pdf'},
+    'scene_splitting_task': {'queue': 'default', 'routing_key': 'tasks.default'},
+    'save_scenes_task': {'queue': 'default', 'routing_key': 'tasks.default'},
 })
 
 if os.getenv('CELERY_ENABLE_MONITORING', 'false').lower() == 'true':

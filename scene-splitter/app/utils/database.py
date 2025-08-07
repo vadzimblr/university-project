@@ -3,18 +3,21 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-required_env_vars = ["POSTGRESQL_HOST", "POSTGRESQL_USER", "POSTGRESQL_PASSWORD", "POSTGRESQL_DB","POSTGRESQL_PORT"]
-for var in required_env_vars:
-    if not os.getenv(var):
-        raise RuntimeError(f"Missing required environment variable: {var}")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-POSTGRESQL_HOST = os.environ["POSTGRESQL_HOST"]
-POSTGRESQL_USER = os.environ["POSTGRESQL_USER"]
-POSTGRESQL_PASSWORD = os.environ["POSTGRESQL_PASSWORD"]
-POSTGRESQL_DB = os.environ["POSTGRESQL_DB"]
-POSTGRESQL_PORT = os.environ["POSTGRESQL_PORT"]
+if not DATABASE_URL:
+    required_env_vars = ["POSTGRES_HOST", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB"]
+    for var in required_env_vars:
+        if not os.getenv(var):
+            raise RuntimeError(f"Missing required environment variable: {var}")
 
-DATABASE_URL = f"postgresql://{POSTGRESQL_USER}:{POSTGRESQL_PASSWORD}@{POSTGRESQL_HOST}:{POSTGRESQL_PORT}/{POSTGRESQL_DB}"
+    POSTGRES_HOST = os.environ["POSTGRES_HOST"]
+    POSTGRES_USER = os.environ["POSTGRES_USER"]
+    POSTGRES_PASSWORD = os.environ["POSTGRES_PASSWORD"]
+    POSTGRES_DB = os.environ["POSTGRES_DB"]
+    POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
+
+    DATABASE_URL = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 
 engine = create_engine(
     DATABASE_URL,
@@ -35,6 +38,8 @@ def get_db():
     finally:
         db.close()
 
+def get_db_session():
+    return SessionLocal()
 
 def get_database_url():
     return DATABASE_URL

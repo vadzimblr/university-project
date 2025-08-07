@@ -1,10 +1,9 @@
 from .document import Document
 from .processing_job import ProcessingJob
-from .enums import ProcessingStatus, ProcessingStep
+from .scene import Scene
 
 __all__ = [
     "Document", 
     "ProcessingJob",
-    "ProcessingStatus", 
-    "ProcessingStep", 
+    "Scene",
 ]
