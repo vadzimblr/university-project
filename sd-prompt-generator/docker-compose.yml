@@ -1,0 +1,58 @@
+services:
+  sd-prompt-generator:
+    container_name: sd_prompt_generator_service
+    build: .
+    ports:
+      - "7001:7001"
+    env_file:
+      - .env
+    networks:
+      - app-net
+    volumes:
+      - .:/app
+
+  worker:
+    build: .
+    container_name: sd_prompt_generator_worker
+    command: celery -A app.utils.celery worker --loglevel=info
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    networks:
+      - app-net
+
+  beat:
+    build: .
+    container_name: sd_prompt_generator_beat
+    command: celery -A app.utils.celery beat --loglevel=info
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      - sd-prompt-generator
+      - worker
+    restart: unless-stopped
+    networks:
+      - app-net
+
+  inbox-consumer:
+    build: .
+    container_name: sd_prompt_generator_inbox_consumer
+    command: python run_inbox_consumer.py
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      - sd-prompt-generator
+    restart: unless-stopped
+    networks:
+      - app-net
+
+
+networks:
+  app-net:
+    name: app-net
+    external: true
