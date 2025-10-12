@@ -1,7 +1,5 @@
-from typing import List, Dict, Any
 from app.utils.celery import celery_app
 from app.services.scene_splitter import SceneSplitterService
-from app.models import ProcessingJob, Scene
 from app.repositories.processing_job_repository import ProcessingJobRepository
 from app.utils.database import get_db_session
 from sqlalchemy.orm import Session
@@ -52,4 +50,4 @@ def scene_splitting_task(self, job_id: str, extracted_text: str):
         )
     
     finally:
-        session.close() 
+        session.close()

@@ -24,6 +24,7 @@ celery_app = Celery(
         "app.services.tasks.extract_text_task",
         "app.services.tasks.scene_splitting_task",
         "app.services.tasks.save_scenes_task",
+        "app.services.tasks.publish_outbox_events_task",
     ]
 )
 
@@ -60,3 +61,17 @@ celery_app.conf.task_routes.update({
 if os.getenv('CELERY_ENABLE_MONITORING', 'false').lower() == 'true':
     celery_app.conf.worker_send_task_events = True
     celery_app.conf.task_send_sent_event = True
+
+celery_app.conf.beat_schedule = {
+    'publish-outbox-events-every-3-seconds': {
+        'task': 'publish_outbox_events',
+        'schedule': 3,
+    },
+    'cleanup-old-events-daily': {
+        'task': 'cleanup_old_outbox_events',
+        'schedule': 3600,
+    },
+}
+
+def get_broker_url():
+    return broker_url
