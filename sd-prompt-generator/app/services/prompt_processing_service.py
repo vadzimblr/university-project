@@ -6,6 +6,7 @@ from typing import Optional
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.models.entities import Story
 from app.models.entities.SceneResult import SceneResult
@@ -42,7 +43,27 @@ class PromptProcessingService:
             if cached_scene_response is not None:
                 return cached_scene_response
 
-            new_scene = self.scene_repo.create_from_request(request_data)
+            existing_scene = self.scene_repo.get_by_story_uuid_and_scene_number(
+                request_data.story_uuid,
+                request_data.scene_number
+            )
+            
+            if existing_scene:
+                new_scene = existing_scene
+                self.logger.info(f"Reusing existing scene {existing_scene.id}")
+            else:
+                try:
+                    new_scene = self.scene_repo.create_from_request(request_data)
+                    self.logger.info(f"Created new scene {new_scene.id}")
+                except IntegrityError:
+                    self.db.rollback()
+                    new_scene = self.scene_repo.get_by_story_uuid_and_scene_number(
+                        request_data.story_uuid,
+                        request_data.scene_number
+                    )
+                    if not new_scene:
+                        raise Exception("Failed to create or retrieve scene")
+                    self.logger.info(f"Race condition handled, using scene {new_scene.id}")
 
             previous_scene = self.__find_previous_scene(request_data, story)
 
