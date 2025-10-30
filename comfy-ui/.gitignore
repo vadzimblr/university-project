@@ -1,0 +1,6 @@
+comfyui/**
+!comfyui/**/
+!comfyui/flows/
+!comfyui/flows/**
+!comfyui/.gitkeep
+!comfyui/**/.gitkeep
