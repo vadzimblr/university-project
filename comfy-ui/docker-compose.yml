@@ -1,0 +1,33 @@
+# ComfyUI Docker Compose File v1.0.1 by John Aldred
+# http://www.johnaldred.com
+# http://github.com/kaouthia
+
+services:
+  comfyk:
+    build:
+      dockerfile: Dockerfile
+    image: comfyui:latest
+    container_name: comfyui
+    ports:
+      - "8188:8188"
+    volumes:
+      # persist your models, output, and settings:
+      - ./comfyui/models:/app/ComfyUI/models
+
+      # persist your output images:
+      - ./comfyui/output:/app/ComfyUI/output
+      
+      # persist all your settings & extra nodes:
+      - ./comfyui/settings:/app/ComfyUI/user/default:rw
+
+      # persist just your saved flows (overrides the workflows/ in default):
+      - ./comfyui/flows:/app/ComfyUI/user/default/workflows:rw
+    
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    stdin_open: true
+    env_file:
+      - .env
+    tty: true
+    restart: unless-stopped
