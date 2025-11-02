@@ -30,13 +30,13 @@ celery_app = Celery(
 
 celery_app.conf.update(
     task_routes={
-        '*.pdf.*': {'queue': 'pdf_tasks', 'routing_key': 'tasks.pdf'},
-        '*': {'queue': 'default', 'routing_key': 'tasks.default'},
+        '*.pdf.*': {'queue': 'scene_splitter_pdf_tasks', 'routing_key': 'tasks.pdf'},
+        '*': {'queue': 'scene_splitter_default', 'routing_key': 'tasks.default'},
     },
     
     task_queues=[
-        Queue('pdf_tasks', task_exchange, routing_key='tasks.pdf', durable=True),
-        Queue('default', task_exchange, routing_key='tasks.default', durable=True),
+        Queue('scene_splitter_pdf_tasks', task_exchange, routing_key='tasks.pdf', durable=True),
+        Queue('scene_splitter_default', task_exchange, routing_key='tasks.default', durable=True),
     ],
     
     task_acks_late=True,
@@ -53,9 +53,9 @@ celery_app.conf.update(
 )
 
 celery_app.conf.task_routes.update({
-    'extract_text_task': {'queue': 'pdf_tasks', 'routing_key': 'tasks.pdf'},
-    'scene_splitting_task': {'queue': 'default', 'routing_key': 'tasks.default'},
-    'save_scenes_task': {'queue': 'default', 'routing_key': 'tasks.default'},
+    'extract_text_task': {'queue': 'scene_splitter_pdf_tasks', 'routing_key': 'tasks.pdf'},
+    'scene_splitting_task': {'queue': 'scene_splitter_default', 'routing_key': 'tasks.default'},
+    'save_scenes_task': {'queue': 'scene_splitter_default', 'routing_key': 'tasks.default'},
 })
 
 if os.getenv('CELERY_ENABLE_MONITORING', 'false').lower() == 'true':

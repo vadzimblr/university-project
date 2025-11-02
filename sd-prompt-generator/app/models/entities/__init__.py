@@ -4,6 +4,7 @@ from .Story import Story
 from .StoryCharacter import StoryCharacter
 from .StoryLocation import StoryLocation
 from .InboxEvent import InboxEvent
+from .OutboxEvent import OutboxEvent
 
 __all__ = [
     'Scene',
@@ -11,6 +12,7 @@ __all__ = [
     'Story',
     'StoryCharacter',
     'StoryLocation',
-    'InboxEvent'
+    'InboxEvent',
+    'OutboxEvent',
 ]
 

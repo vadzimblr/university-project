@@ -8,13 +8,13 @@ from dotenv import load_dotenv
 
 try:
     from app.utils.database import Base, get_database_url
-    from app.models.entities import Scene, SceneResult, Story, StoryCharacter, StoryLocation
+    from app.models.entities import Scene, SceneResult, Story, StoryCharacter, StoryLocation, InboxEvent, OutboxEvent
 except ImportError:
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     sys.path.insert(0, project_root)
     
     from app.utils.database import Base, get_database_url
-    from app.models.entities import Scene, SceneResult, Story, StoryCharacter, StoryLocation
+    from app.models.entities import Scene, SceneResult, Story, StoryCharacter, StoryLocation, InboxEvent, OutboxEvent
 
 config = context.config
 

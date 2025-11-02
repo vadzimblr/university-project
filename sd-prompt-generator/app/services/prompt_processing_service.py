@@ -15,9 +15,11 @@ from app.models.schemas.response import LLMSceneResponse, SceneResponse, Locatio
 from app.repositories.scene_repository import SceneRepository
 from app.repositories.scene_result_repository import SceneResultRepository
 from app.repositories.story_repository import StoryRepository
+from app.repositories.outbox_repository import OutboxRepository
 from app.services.context_service import ContextService
 from app.services.llm_service import LLMService
 from app.utils.database import SessionLocal
+from app.events.prompt_extracted_event import PromptExtractedEvent, PreviousContext
 
 
 class PromptProcessingService:
@@ -26,6 +28,7 @@ class PromptProcessingService:
         self.story_repo = StoryRepository(self.db)
         self.scene_repo = SceneRepository(self.db)
         self.scene_result_repo = SceneResultRepository(self.db)
+        self.outbox_repo = OutboxRepository(self.db)
         self.context_service = ContextService()
         self.llm_service = LLMService()
         self.logger = logging.getLogger(__name__)
@@ -85,6 +88,14 @@ class PromptProcessingService:
                 llm_response = llm_response,
                 request_data = request_data,
                 new_scene = new_scene
+            )
+
+            self.__publish_prompt_extracted_event(
+                story_uuid=request_data.story_uuid,
+                scene_number=request_data.scene_number,
+                prompt=llm_response.sd_prompt,
+                scene_id=new_scene.id,
+                previous_scene=previous_scene
             )
 
             processing_time = time.time() - start_time
@@ -163,6 +174,56 @@ class PromptProcessingService:
             story = self.story_repo.create(request_data.story_uuid)
 
         return story
+
+    def __publish_prompt_extracted_event(
+            self,
+            story_uuid: str,
+            scene_number: int,
+            prompt: str,
+            scene_id: int,
+            previous_scene
+    ):
+        try:
+            previous_contexts = []
+            
+            if previous_scene:
+                for i in range(min(3, scene_number)):
+                    prev_scene_number = scene_number - i - 1
+                    if prev_scene_number > 0:
+                        prev_scene = self.scene_repo.get_by_story_uuid_and_scene_number(
+                            story_uuid, prev_scene_number
+                        )
+                        if prev_scene:
+                            prev_result = self.scene_result_repo.get_by_scene_id(prev_scene.id)
+                            if prev_result and prev_result.sd_prompt:
+                                previous_contexts.append(
+                                    PreviousContext(
+                                        story_uuid=story_uuid,
+                                        scene_number=prev_scene_number,
+                                        prompt=prev_result.sd_prompt
+                                    )
+                                )
+            
+            event = PromptExtractedEvent(
+                story_uuid=story_uuid,
+                scene_number=scene_number,
+                prompt=prompt,
+                scene_id=scene_id,
+                previous_contexts=previous_contexts
+            )
+            
+            self.outbox_repo.create_event(event, session=self.db)
+            self.db.commit()
+            
+            self.logger.info(
+                f"Created PromptExtractedEvent in outbox: story_uuid={story_uuid}, "
+                f"scene_number={scene_number}"
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to publish PromptExtractedEvent: {e}")
+
+            import traceback
+            self.logger.error(traceback.format_exc())
 
     def __convert_to_scene_response(
             self,

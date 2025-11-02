@@ -22,16 +22,17 @@ celery_app = Celery(
     backend="rpc://",
     include=[
         "app.tasks.inbox_processor_task",
+        "app.tasks.publish_outbox_events_task",
     ]
 )
 
 celery_app.conf.update(
     task_routes={
-        '*': {'queue': 'default', 'routing_key': 'tasks.default'},
+        '*': {'queue': 'sd_prompt_default', 'routing_key': 'tasks.default'},
     },
     
     task_queues=[
-        Queue('default', task_exchange, routing_key='tasks.default', durable=True),
+        Queue('sd_prompt_default', task_exchange, routing_key='tasks.default', durable=True),
     ],
     
     task_acks_late=True,
@@ -54,6 +55,14 @@ celery_app.conf.beat_schedule = {
     },
     'cleanup-old-inbox-events-daily': {
         'task': 'cleanup_old_inbox_events',
+        'schedule': 86400.0,
+    },
+    'publish-outbox-events-every-5-seconds': {
+        'task': 'publish_outbox_events',
+        'schedule': 5.0,
+    },
+    'cleanup-old-outbox-events-daily': {
+        'task': 'cleanup_old_outbox_events',
         'schedule': 86400.0,
     },
 }
