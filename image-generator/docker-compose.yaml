@@ -1,0 +1,58 @@
+services:
+  image-generator:
+    container_name: image_generator_service
+    build: .
+    ports:
+      - "7003:7003"
+    env_file:
+      - .env
+    networks:
+      - app-net
+    volumes:
+      - .:/app
+
+  worker:
+    build: .
+    container_name: image_generator_worker
+    command: celery -A app.utils.celery worker --loglevel=info
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    networks:
+      - app-net
+
+  beat:
+    build: .
+    container_name: image_generator_beat
+    command: celery -A app.utils.celery beat --loglevel=info
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      - image-generator
+      - worker
+    restart: unless-stopped
+    networks:
+      - app-net
+
+  inbox-consumer:
+    build: .
+    container_name: image_generator_inbox_consumer
+    command: python run_inbox_consumer.py
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      - image-generator
+    restart: unless-stopped
+    networks:
+      - app-net
+
+
+networks:
+  app-net:
+    name: app-net
+    external: true
