@@ -17,7 +17,7 @@ broker_url = f"amqp://{RABBITMQ_USER}:{RABBITMQ_PASS}@{RABBITMQ_HOST}:{RABBITMQ_
 task_exchange = Exchange('sd_prompt_tasks', type='topic', durable=True)
 
 celery_app = Celery(
-    "sd_prompt_generator_tasks",
+    "image_generator_tasks",
     broker=broker_url,
     backend="rpc://",
     include=[
@@ -49,11 +49,11 @@ celery_app.conf.update(
 
 celery_app.conf.beat_schedule = {
     'process-inbox-events-every-3-seconds': {
-        'task': 'process_inbox_events',
+        'task': 'image_generator.process_inbox_events',
         'schedule': 3.0,
     },
     'cleanup-old-inbox-events-daily': {
-        'task': 'cleanup_old_inbox_events',
+        'task': 'image_generator.cleanup_old_inbox_events',
         'schedule': 86400.0,
     },
 }
