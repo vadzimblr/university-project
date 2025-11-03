@@ -14,10 +14,10 @@ RABBITMQ_PORT = os.environ["RABBITMQ_PORT"]
 
 broker_url = f"amqp://{RABBITMQ_USER}:{RABBITMQ_PASS}@{RABBITMQ_HOST}:{RABBITMQ_PORT}//"
 
-task_exchange = Exchange('sd_prompt_tasks', type='topic', durable=True)
+task_exchange = Exchange('image_generator_tasks', type='topic', durable=True)
 
 celery_app = Celery(
-    "image_generator_tasks",
+    "image_generator",
     broker=broker_url,
     backend="rpc://",
     include=[
@@ -27,11 +27,11 @@ celery_app = Celery(
 
 celery_app.conf.update(
     task_routes={
-        '*': {'queue': 'default', 'routing_key': 'tasks.default'},
+        'image_generator.*': {'queue': 'image_generator_queue', 'routing_key': 'image_generator.tasks'},
     },
 
     task_queues=[
-        Queue('default', task_exchange, routing_key='tasks.default', durable=True),
+        Queue('image_generator_queue', task_exchange, routing_key='image_generator.tasks', durable=True),
     ],
 
     task_acks_late=True,

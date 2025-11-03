@@ -3,7 +3,7 @@ version: '3.8'
 services:
   minio:
     image: minio/minio:latest
-    container_name: minio_s3
+    container_name: minio
     env_file:
       - .env
     command: server /data --console-address ":9001"

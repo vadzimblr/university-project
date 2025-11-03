@@ -158,30 +158,41 @@ class ComfyUIService:
         images = []
         
         try:
+            import base64
             async with httpx.AsyncClient(timeout=60.0) as client:
                 for node_id, node_output in outputs.items():
                     if "images" in node_output:
-                        for image_info in node_output["images"]:
-                            filename = image_info.get("filename")
-                            subfolder = image_info.get("subfolder", "")
-                            folder_type = image_info.get("type", "output")
-                            
-                            params = {
-                                "filename": filename,
-                                "subfolder": subfolder,
-                                "type": folder_type
-                            }
-                            response = await client.get(
-                                f"{self.comfyui_url}/view",
-                                params=params
-                            )
-                            response.raise_for_status()
-                            images.append(response.content)
-                            
-                            self.logger.info(f"Downloaded image: {filename}")
+                        for image_data in node_output["images"]:
+                            if isinstance(image_data, str):
+                                self.logger.info(f"Decoding base64 image from node {node_id}")
+                                image_bytes = base64.b64decode(image_data)
+                                images.append(image_bytes)
+                            elif isinstance(image_data, dict):
+                                filename = image_data.get("filename")
+                                subfolder = image_data.get("subfolder", "")
+                                folder_type = image_data.get("type", "output")
+                                
+                                params = {
+                                    "filename": filename,
+                                    "subfolder": subfolder,
+                                    "type": folder_type
+                                }
+                                response = await client.get(
+                                    f"{self.comfyui_url}/view",
+                                    params=params
+                                )
+                                response.raise_for_status()
+                                images.append(response.content)
+                                
+                                self.logger.info(f"Downloaded image: {filename}")
+                            else:
+                                self.logger.warning(f"Unknown image data type in node {node_id}: {type(image_data)}")
         except httpx.HTTPError as e:
             self.logger.error(f"Failed to download images: {e}")
             raise Exception(f"Failed to download images from ComfyUI: {e}")
+        except Exception as e:
+            self.logger.error(f"Failed to process images: {e}")
+            raise Exception(f"Failed to process images from ComfyUI: {e}")
         
         return images
     

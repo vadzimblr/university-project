@@ -3,10 +3,13 @@ import sys
 import asyncio
 import os
 from typing import Dict, Any
+from datetime import datetime
 
 from ..repositories.inbox_repository import InboxRepository
+from ..repositories.generated_image_repository import GeneratedImageRepository
 from ..utils.database import get_db_session
 from .comfyui_service import ComfyUIService
+from .minio_service import MinioService
 
 
 class InboxProcessor:
@@ -75,15 +78,9 @@ class InboxProcessor:
         story_uuid = payload.get('story_uuid')
         scene_number = payload.get('scene_number')
         prompt = payload.get('prompt')
-        scene_id = payload.get('scene_id')
-        previous_contexts = payload.get('previous_contexts', [])
         
         self.logger.info(f"Processing prompt.extracted event for story {story_uuid}, scene #{scene_number}")
         self.logger.info(f"Prompt: {prompt}")
-        self.logger.info(f"Scene ID: {scene_id}")
-        
-        if previous_contexts:
-            self.logger.info(f"Previous contexts: {len(previous_contexts)} scenes")
         
         try:
             result = asyncio.run(self._generate_image_async(payload))
@@ -96,14 +93,30 @@ class InboxProcessor:
         story_uuid = payload.get('story_uuid')
         scene_number = payload.get('scene_number')
         prompt = payload.get('prompt')
-        scene_id = payload.get('scene_id')
         
         session = get_db_session()
         try:
             comfyui_url = os.getenv('COMFYUI_URL', 'http://comfy-ui:8188')
             comfyui_service = ComfyUIService(session, comfyui_url)
             
-            reference_image = payload.get('reference_image', '').strip()
+            minio_service = self._init_minio_service()
+            image_repo = GeneratedImageRepository(session)
+            
+            reference_image = None
+            if story_uuid and scene_number and scene_number > 1:
+                self.logger.info(f"Checking for previous scene image (scene #{scene_number - 1})")
+                previous_image = image_repo.get_previous_scene_image(story_uuid, scene_number)
+                if previous_image:
+                    self.logger.info(f"Found previous scene image: scene #{previous_image.scene_number}")
+                    reference_image = minio_service.download_as_base64(
+                        previous_image.minio_bucket,
+                        previous_image.minio_path
+                    )
+                else:
+                    self.logger.info(f"No previous scene image found")
+            else:
+                self.logger.info(f"First scene (#{scene_number}), no reference image")
+            
             has_reference = bool(reference_image)
             
             if not has_reference:
@@ -152,29 +165,72 @@ class InboxProcessor:
                 images = await comfyui_service.get_generated_images(prompt_id)
                 self.logger.info(f"Downloaded {len(images)} images")
                 
-                # TODO: Сохранить изображения в MinIO/S3
-                # TODO: Сохранить ссылки на изображения в БД
+                saved_images = []
+                bucket_name = os.getenv('MINIO_BUCKET', 'images')
+                
+                for idx, image_bytes in enumerate(images):
+                    timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+                    object_name = f"{story_uuid}/scene_{scene_number}/{timestamp}_{idx}.png"
+                    
+                    upload_result = minio_service.upload_bytes(
+                        bucket_name,
+                        object_name,
+                        image_bytes,
+                        content_type='image/png'
+                    )
+                    
+                    saved_image = image_repo.save_image(
+                        story_uuid=story_uuid,
+                        scene_number=scene_number,
+                        minio_path=object_name,
+                        minio_bucket=bucket_name,
+                        file_size=upload_result['size'],
+                        prompt_id=prompt_id,
+                        prompt_text=prompt[:500] if prompt else None
+                    )
+                    
+                    saved_images.append({
+                        'id': saved_image.id,
+                        'minio_path': saved_image.minio_path,
+                        'bucket': saved_image.minio_bucket,
+                        'size': saved_image.file_size
+                    })
+                    
+                    self.logger.info(f"Saved image {idx + 1}/{len(images)}: {object_name}")
+                
                 # TODO: Опубликовать событие images.generated
                 
                 return {
                     'story_uuid': story_uuid,
                     'scene_number': scene_number,
-                    'scene_id': scene_id,
                     'prompt_id': prompt_id,
                     'status': 'completed',
-                    'images_count': len(images)
+                    'images_count': len(images),
+                    'saved_images': saved_images
                 }
             else:
                 return {
                     'story_uuid': story_uuid,
                     'scene_number': scene_number,
-                    'scene_id': scene_id,
                     'prompt_id': prompt_id,
                     'status': 'queued'
                 }
                 
         finally:
             session.close()
+    
+    def _init_minio_service(self) -> MinioService:
+        minio_endpoint = os.getenv('MINIO_ENDPOINT', 'minio:9000')
+        minio_access_key = os.getenv('MINIO_ACCESS_KEY', 'minioadmin')
+        minio_secret_key = os.getenv('MINIO_SECRET_KEY', 'minioadmin')
+        minio_secure = os.getenv('MINIO_SECURE', 'false').lower() == 'true'
+        
+        return MinioService(
+            endpoint=minio_endpoint,
+            access_key=minio_access_key,
+            secret_key=minio_secret_key,
+            secure=minio_secure
+        )
     
     def _generate_seed(self) -> int:
         import random
