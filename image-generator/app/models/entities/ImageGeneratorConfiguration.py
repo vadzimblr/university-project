@@ -7,4 +7,5 @@ class ImageGeneratorConfiguration(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     uuid = Column(String(100), unique=True, nullable=False)
+    key = Column(String(100), unique=True, nullable=False, index=True)
     configuration = Column(Text, nullable=False)
