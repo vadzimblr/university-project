@@ -63,15 +63,37 @@ class OutboxRepository:
             .all()
         )
     
-    def mark_as_published(self, event_id: UUID) -> bool:
+    def mark_as_published(self, event_id: UUID, commit: bool = True) -> bool:
         event = self.db.query(OutboxEvent).filter(OutboxEvent.id == event_id).first()
         if not event:
             return False
         
         event.published = True
         event.published_at = datetime.utcnow()
-        self.db.commit()
+        
+        if commit:
+            self.db.commit()
+        
         return True
+    
+    def mark_multiple_as_published(self, event_ids: List[UUID]) -> int:
+        if not event_ids:
+            return 0
+        
+        now = datetime.utcnow()
+        updated = (
+            self.db.query(OutboxEvent)
+            .filter(OutboxEvent.id.in_(event_ids))
+            .update(
+                {
+                    'published': True,
+                    'published_at': now
+                },
+                synchronize_session=False
+            )
+        )
+        self.db.commit()
+        return updated
     
     def increment_retry_count(self, event_id: UUID, error_message: str) -> bool:
         event = self.db.query(OutboxEvent).filter(OutboxEvent.id == event_id).first()

@@ -53,7 +53,9 @@ class PromptExtractedConsumer:
             inbox_event = inbox_repo.save_event(
                 event_type=event_type,
                 payload=payload,
-                idempotency_key=idempotency_key
+                idempotency_key=idempotency_key,
+                story_uuid=story_uuid,
+                scene_number=scene_number
             )
             
             if inbox_event:
@@ -74,7 +76,6 @@ class PromptExtractedConsumer:
                 session.close()
     
     def start(self):
-        """Запускает консьюмер"""
         logger.info("Starting PromptExtractedConsumer...")
         logger.info(f"Connecting to broker: {self.broker_url}")
         logger.info(f"Exchange: {self.exchange.name}")

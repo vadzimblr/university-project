@@ -18,7 +18,7 @@ class InboxProcessor:
         self.logger.setLevel(logging.INFO)
         self.logger.addHandler(logging.StreamHandler(sys.stdout))
     
-    def process_inbox_events(self, batch_size: int = 10, max_retries: int = 5) -> Dict[str, Any]:
+    def process_inbox_events(self, batch_size: int = 10, max_retries: int = 5, sequential: bool = True) -> Dict[str, Any]:
         session = get_db_session()
         inbox_repo = InboxRepository(session)
         
@@ -31,13 +31,22 @@ class InboxProcessor:
         }
         
         try:
-            events = inbox_repo.get_unprocessed_events(limit=batch_size, max_retries=max_retries)
+            if sequential:
+                events = inbox_repo.get_unprocessed_events_sequential(
+                    limit=batch_size, 
+                    max_retries=max_retries,
+                    lock_timeout_minutes=2
+                )
+            else:
+                events = inbox_repo.get_unprocessed_events(limit=batch_size, max_retries=max_retries)
+            
             stats['processed'] = len(events)
             
             if not events:
                 return stats
             
-            self.logger.info(f"Processing {len(events)} events from inbox")
+            mode = "sequential" if sequential else "normal"
+            self.logger.info(f"Processing {len(events)} events from inbox ({mode} mode)")
             
             for event in events:
                 try:
@@ -128,8 +137,8 @@ class InboxProcessor:
                 self.logger.info("No reference image provided, using placeholder and disabling IPAdapter")
             else:
                 ipadapter_weight = float(os.getenv('IPADAPTER_WEIGHT', '0.65'))
-                ipadapter_start_at = float(os.getenv('IPADAPTER_START_AT', '0.3'))
-                ipadapter_end_at = float(os.getenv('IPADAPTER_END_AT', '0.95'))
+                ipadapter_start_at = float(os.getenv('IPADAPTER_START_AT', '0.2'))
+                ipadapter_end_at = float(os.getenv('IPADAPTER_END_AT', '1'))
                 self.logger.info("Reference image provided, enabling IPAdapter")
             
             placeholders = {

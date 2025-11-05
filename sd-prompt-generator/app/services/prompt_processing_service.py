@@ -90,10 +90,12 @@ class PromptProcessingService:
                 new_scene = new_scene
             )
 
+            enriched_prompt = self.__enrich_prompt_with_context(llm_response)
+            
             self.__publish_prompt_extracted_event(
                 story_uuid=request_data.story_uuid,
                 scene_number=request_data.scene_number,
-                prompt=llm_response.sd_prompt,
+                prompt=enriched_prompt,
                 scene_id=new_scene.id,
                 previous_scene=previous_scene
             )
@@ -175,6 +177,36 @@ class PromptProcessingService:
 
         return story
 
+    def __enrich_prompt_with_context(self, llm_response) -> str:
+        parts = []
+        
+        if llm_response.sd_prompt:
+            parts.append(llm_response.sd_prompt)
+        
+        if llm_response.characters:
+            characters_desc = []
+            for char in llm_response.characters:
+                char_parts = [char.name]
+                if char.description:
+                    char_parts.append(char.description)
+                if char.appearance:
+                    char_parts.append(char.appearance)
+                characters_desc.append(", ".join(char_parts))
+            
+            if characters_desc:
+                parts.append("Characters: " + "; ".join(characters_desc))
+        
+        if llm_response.location:
+            parts.append(f"Location: {llm_response.location}")
+        
+        if llm_response.actions:
+            actions_str = ", ".join(llm_response.actions) if isinstance(llm_response.actions, list) else llm_response.actions
+            parts.append(f"Actions: {actions_str}")
+        
+        enriched_prompt = ". ".join(parts)
+        
+        return enriched_prompt
+    
     def __publish_prompt_extracted_event(
             self,
             story_uuid: str,

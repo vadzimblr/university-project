@@ -57,9 +57,9 @@ celery_app.conf.beat_schedule = {
         'task': 'cleanup_old_inbox_events',
         'schedule': 86400.0,
     },
-    'publish-outbox-events-every-5-seconds': {
+    'publish-outbox-events-every-2-seconds': {
         'task': 'publish_outbox_events',
-        'schedule': 5.0,
+        'schedule': 2.0,
     },
     'cleanup-old-outbox-events-daily': {
         'task': 'cleanup_old_outbox_events',

@@ -93,6 +93,11 @@ class EventPublisher:
             events = outbox_repo.get_unpublished_events(limit=batch_size)
             stats['processed'] = len(events)
             
+            if not events:
+                return stats
+            
+            published_event_ids = []
+            
             for event in events:
                 try:
                     event_class = EventRegistry.get_event_class(event.event_type)
@@ -109,7 +114,7 @@ class EventPublisher:
                         routing_key=routing_key
                     )
 
-                    outbox_repo.mark_as_published(event.id)
+                    published_event_ids.append(event.id)
                     stats['published'] += 1
                     
                 except Exception as e:
@@ -125,6 +130,10 @@ class EventPublisher:
                     print(traceback.format_exc())
 
                     outbox_repo.increment_retry_count(event.id, error_msg)
+            
+            if published_event_ids:
+                outbox_repo.mark_multiple_as_published(published_event_ids)
+                print(f"Batch committed {len(published_event_ids)} events")
             
             return stats
             

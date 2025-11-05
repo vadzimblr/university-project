@@ -16,3 +16,6 @@ class StoryRepository:
 
     def get_by_uuid(self, uuid: str) -> type[Story] | None:
         return self.db.query(Story).filter(Story.uuid == uuid).first()
+    
+    def get_all(self, limit: int = 100) -> list[Story]:
+        return self.db.query(Story).order_by(Story.created_at.desc()).limit(limit).all()
