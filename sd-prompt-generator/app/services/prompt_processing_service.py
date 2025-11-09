@@ -41,15 +41,31 @@ class PromptProcessingService:
 
             story = self.__create_story_if_not_exists(request_data)
 
-            cached_scene_response = self.__get_scene_response(request_data)
-
-            if cached_scene_response is not None:
-                return cached_scene_response
-
             existing_scene = self.scene_repo.get_by_story_uuid_and_scene_number(
                 request_data.story_uuid,
                 request_data.scene_number
             )
+            
+            if existing_scene:
+                scene_result = self.scene_result_repo.get_by_scene_id(existing_scene.id)
+                if scene_result and scene_result.sd_prompt:
+                    self.logger.info(f"Scene {existing_scene.id} already processed, publishing outbox event")
+                    
+                    enriched_prompt = self.__enrich_prompt_from_scene_result(scene_result)
+                    
+                    previous_scene = self.__find_previous_scene(request_data, story)
+                    
+                    self.__publish_prompt_extracted_event(
+                        story_uuid=request_data.story_uuid,
+                        scene_number=request_data.scene_number,
+                        prompt=enriched_prompt,
+                        scene_id=existing_scene.id,
+                        previous_scene=previous_scene
+                    )
+                    
+                    cached_scene_response = self.__get_scene_response(request_data)
+                    if cached_scene_response is not None:
+                        return cached_scene_response
             
             if existing_scene:
                 new_scene = existing_scene
@@ -202,6 +218,36 @@ class PromptProcessingService:
         if llm_response.actions:
             actions_str = ", ".join(llm_response.actions) if isinstance(llm_response.actions, list) else llm_response.actions
             parts.append(f"Actions: {actions_str}")
+        
+        enriched_prompt = ". ".join(parts)
+        
+        return enriched_prompt
+    
+    def __enrich_prompt_from_scene_result(self, scene_result: SceneResult) -> str:
+        parts = []
+        
+        if scene_result.sd_prompt:
+            parts.append(scene_result.sd_prompt)
+        
+        if scene_result.characters_data:
+            characters_desc = []
+            for char in scene_result.characters_data:
+                char_parts = [char.get('name', '')]
+                if char.get('description'):
+                    char_parts.append(char['description'])
+                if char.get('appearance'):
+                    char_parts.append(char['appearance'])
+                characters_desc.append(", ".join(filter(None, char_parts)))
+            
+            if characters_desc:
+                parts.append("Characters: " + "; ".join(characters_desc))
+        
+        if scene_result.location_data and scene_result.location_data.get('name'):
+            location_name = scene_result.location_data['name']
+            parts.append(f"Location: {location_name}")
+        
+        if scene_result.actions:
+            parts.append(f"Actions: {scene_result.actions}")
         
         enriched_prompt = ". ".join(parts)
         

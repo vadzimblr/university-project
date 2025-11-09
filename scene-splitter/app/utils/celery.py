@@ -65,7 +65,7 @@ if os.getenv('CELERY_ENABLE_MONITORING', 'false').lower() == 'true':
 celery_app.conf.beat_schedule = {
     'publish-outbox-events-every-3-seconds': {
         'task': 'publish_outbox_events',
-        'schedule': 3,
+        'schedule': 0.3,
     },
     'cleanup-old-events-daily': {
         'task': 'cleanup_old_outbox_events',

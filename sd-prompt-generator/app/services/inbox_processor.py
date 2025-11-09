@@ -15,7 +15,7 @@ class InboxProcessor:
         self.logger.addHandler(logging.StreamHandler(sys.stdout))
         self.prompt_service = PromptProcessingService()
     
-    def process_inbox_events(self, batch_size: int = 10, max_retries: int = 5) -> Dict[str, Any]:
+    def process_inbox_events(self, batch_size: int = 10, max_retries: int = 5, sequential: bool = True) -> Dict[str, Any]:
         session = get_db_session()
         inbox_repo = InboxRepository(session)
         
@@ -28,13 +28,18 @@ class InboxProcessor:
         }
         
         try:
-            events = inbox_repo.get_unprocessed_events(limit=batch_size, max_retries=max_retries)
+            if sequential:
+                events = inbox_repo.get_unprocessed_events_sequential(limit=batch_size, max_retries=max_retries)
+            else:
+                events = inbox_repo.get_unprocessed_events(limit=batch_size, max_retries=max_retries)
+            
             stats['processed'] = len(events)
             
             if not events:
                 return stats
             
-            self.logger.info(f"Processing {len(events)} events from inbox")
+            mode = "sequential" if sequential else "normal"
+            self.logger.info(f"Processing {len(events)} events from inbox ({mode} mode)")
             
             for event in events:
                 try:

@@ -15,6 +15,9 @@ class InboxEvent(Base):
     payload = Column(JSONB, nullable=False)
     idempotency_key = Column(String(255), nullable=True, unique=True, index=True)
     
+    story_uuid = Column(String(100), nullable=True, index=True)
+    scene_number = Column(Integer, nullable=True, index=True)
+    
     processed = Column(Boolean, default=False, nullable=False, index=True)
     processed_at = Column(DateTime)
     
@@ -26,5 +29,5 @@ class InboxEvent(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     
     def __repr__(self):
-        return f"<InboxEvent {self.event_type} processed={self.processed}>"
+        return f"<InboxEvent {self.event_type} story={self.story_uuid} scene={self.scene_number} processed={self.processed}>"
 

@@ -46,11 +46,16 @@ class SceneEventsInboxConsumer(ConsumerMixin):
             timestamp = body.get('timestamp')
             
             idempotency_key = None
+            story_uuid = None
+            scene_number = None
+            
             if event_type == 'scene.saved':
                 doc_id = payload.get('document_id')
                 scene_num = payload.get('scene_number')
                 if doc_id and scene_num:
                     idempotency_key = f"scene.saved:{doc_id}:{scene_num}"
+                    story_uuid = doc_id
+                    scene_number = scene_num
             
             print(f"\nReceived event: {event_type} [{timestamp}]")
             print(f"  Scene #{payload.get('scene_number')}, Document: {payload.get('document_id')}")
@@ -58,7 +63,9 @@ class SceneEventsInboxConsumer(ConsumerMixin):
             inbox_event = inbox_repo.save_event(
                 event_type=event_type,
                 payload=payload,
-                idempotency_key=idempotency_key
+                idempotency_key=idempotency_key,
+                story_uuid=story_uuid,
+                scene_number=scene_number
             )
             
             if inbox_event:

@@ -14,7 +14,9 @@ class InboxRepository:
         self, 
         event_type: str, 
         payload: Dict[str, Any],
-        idempotency_key: Optional[str] = None
+        idempotency_key: Optional[str] = None,
+        story_uuid: Optional[str] = None,
+        scene_number: Optional[int] = None
     ) -> Optional[InboxEvent]:
         if idempotency_key:
             existing = (
@@ -30,7 +32,9 @@ class InboxRepository:
             payload=payload,
             processed=False,
             retry_count=0,
-            idempotency_key=idempotency_key
+            idempotency_key=idempotency_key,
+            story_uuid=story_uuid,
+            scene_number=scene_number
         )
         self.db.add(inbox_event)
         self.db.commit()
@@ -107,3 +111,60 @@ class InboxRepository:
         )
         self.db.commit()
         return deleted
+    
+    def get_unprocessed_events_sequential(
+        self, 
+        limit: int = 100, 
+        max_retries: int = 5
+    ) -> List[InboxEvent]:
+        """
+        Gets unprocessed events that can be processed in sequential order.
+        For events with story_uuid and scene_number:
+        - Scene 1 is always processable
+        - Scene N is processable only if scene N-1 is already processed
+        
+        Events without story_uuid/scene_number are processed normally.
+        """
+        # Get candidate events
+        candidate_events = (
+            self.db.query(InboxEvent)
+            .filter(
+                InboxEvent.processed == False,
+                InboxEvent.retry_count < max_retries
+            )
+            .order_by(InboxEvent.story_uuid, InboxEvent.scene_number, InboxEvent.created_at)
+            .with_for_update(skip_locked=True)
+            .all()
+        )
+        
+        processable_events = []
+        
+        for event in candidate_events:
+            if len(processable_events) >= limit:
+                break
+            
+            # Events without story_uuid/scene_number are always processable
+            if not event.story_uuid or event.scene_number is None:
+                processable_events.append(event)
+                continue
+            
+            # Scene 1 is always processable
+            if event.scene_number == 1:
+                processable_events.append(event)
+                continue
+            
+            # Check if previous scene is processed
+            previous_scene_processed = (
+                self.db.query(InboxEvent)
+                .filter(
+                    InboxEvent.story_uuid == event.story_uuid,
+                    InboxEvent.scene_number == event.scene_number - 1,
+                    InboxEvent.processed == True
+                )
+                .first()
+            ) is not None
+            
+            if previous_scene_processed:
+                processable_events.append(event)
+        
+        return processable_events
