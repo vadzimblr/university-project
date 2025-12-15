@@ -136,21 +136,21 @@ class InboxProcessor:
                 ipadapter_end_at = 0.0
                 self.logger.info("No reference image provided, using placeholder and disabling IPAdapter")
             else:
-                ipadapter_weight = float(os.getenv('IPADAPTER_WEIGHT', '0.65'))
-                ipadapter_start_at = float(os.getenv('IPADAPTER_START_AT', '0.2'))
-                ipadapter_end_at = float(os.getenv('IPADAPTER_END_AT', '1'))
+                ipadapter_weight = float(os.getenv('IPADAPTER_WEIGHT', '0.35'))
+                ipadapter_start_at = float(os.getenv('IPADAPTER_START_AT', '0'))
+                ipadapter_end_at = float(os.getenv('IPADAPTER_END_AT', '0.25'))
                 self.logger.info("Reference image provided, enabling IPAdapter")
             
             placeholders = {
                 'model_name': os.getenv('DEFAULT_MODEL_NAME', 'juggernautXL_ragnarokBy.safetensors'),
                 'prompt': prompt,
                 'seed': payload.get('seed', self._generate_seed()),
-                'steps': int(os.getenv('DEFAULT_STEPS', '20')),
-                'cfg': float(os.getenv('DEFAULT_CFG', '8.0')),
-                'sampler_name': os.getenv('DEFAULT_SAMPLER', 'euler'),
-                'scheduler': os.getenv('DEFAULT_SCHEDULER', 'simple'),
-                'width': int(os.getenv('DEFAULT_WIDTH', '512')),
-                'height': int(os.getenv('DEFAULT_HEIGHT', '512')),
+                'steps': int(os.getenv('DEFAULT_STEPS', '27')),
+                'cfg': float(os.getenv('DEFAULT_CFG', '8.3')),
+                'sampler_name': os.getenv('DEFAULT_SAMPLER', 'dpmpp_2m_sde'),
+                'scheduler': os.getenv('DEFAULT_SCHEDULER', 'karras'),
+                'width': int(os.getenv('DEFAULT_WIDTH', '1152')),
+                'height': int(os.getenv('DEFAULT_HEIGHT', '768')),
                 'ipadapter_weight': ipadapter_weight,
                 'ipadapter_start_at': ipadapter_start_at,
                 'ipadapter_end_at': ipadapter_end_at,
