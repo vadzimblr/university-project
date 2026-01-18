@@ -14,12 +14,17 @@ RABBITMQ_PORT = os.environ["RABBITMQ_PORT"]
 
 broker_url = f"amqp://{RABBITMQ_USER}:{RABBITMQ_PASS}@{RABBITMQ_HOST}:{RABBITMQ_PORT}//"
 
-task_exchange = Exchange('tasks', type='topic', durable=True)
+TASK_EXCHANGE_NAME = "scene_splitter.tasks"
+TASK_ROUTING_PREFIX = "scene_splitter.tasks"
+TASK_DEFAULT_QUEUE = "scene_splitter.tasks.default"
+TASK_PDF_QUEUE = "scene_splitter.tasks.pdf"
+
+task_exchange = Exchange(TASK_EXCHANGE_NAME, type='topic', durable=True)
 
 celery_app = Celery(
     "scene_splitter_tasks",
     broker=broker_url,
-    backend="rpc://",
+    backend=None,
     include=[
         "app.services.tasks.extract_text_task",
         "app.services.tasks.scene_splitting_task",
@@ -30,20 +35,26 @@ celery_app = Celery(
 
 celery_app.conf.update(
     task_routes={
-        '*.pdf.*': {'queue': 'scene_splitter_pdf_tasks', 'routing_key': 'tasks.pdf'},
-        '*': {'queue': 'scene_splitter_default', 'routing_key': 'tasks.default'},
+        '*.pdf.*': {'queue': TASK_PDF_QUEUE, 'routing_key': f'{TASK_ROUTING_PREFIX}.pdf'},
+        '*': {'queue': TASK_DEFAULT_QUEUE, 'routing_key': f'{TASK_ROUTING_PREFIX}.default'},
     },
     
     task_queues=[
-        Queue('scene_splitter_pdf_tasks', task_exchange, routing_key='tasks.pdf', durable=True),
-        Queue('scene_splitter_default', task_exchange, routing_key='tasks.default', durable=True),
+        Queue(TASK_PDF_QUEUE, task_exchange, routing_key=f'{TASK_ROUTING_PREFIX}.pdf', durable=True),
+        Queue(TASK_DEFAULT_QUEUE, task_exchange, routing_key=f'{TASK_ROUTING_PREFIX}.default', durable=True),
     ],
-    
+
+    task_default_exchange=TASK_EXCHANGE_NAME,
+    task_default_exchange_type='topic',
+    task_default_routing_key=f'{TASK_ROUTING_PREFIX}.default',
+    task_default_queue=TASK_DEFAULT_QUEUE,
+
     task_acks_late=True,
     worker_prefetch_multiplier=int(os.getenv('CELERY_WORKER_CONCURRENCY', 2)),
     task_reject_on_worker_lost=True,
     
-    task_create_missing_queues=True,
+    task_create_missing_queues=False,
+    task_ignore_result=True,
     
     task_serializer='json',
     accept_content=['json'],
@@ -53,9 +64,9 @@ celery_app.conf.update(
 )
 
 celery_app.conf.task_routes.update({
-    'extract_text_task': {'queue': 'scene_splitter_pdf_tasks', 'routing_key': 'tasks.pdf'},
-    'scene_splitting_task': {'queue': 'scene_splitter_default', 'routing_key': 'tasks.default'},
-    'save_scenes_task': {'queue': 'scene_splitter_default', 'routing_key': 'tasks.default'},
+    'extract_text_task': {'queue': TASK_PDF_QUEUE, 'routing_key': f'{TASK_ROUTING_PREFIX}.pdf'},
+    'scene_splitting_task': {'queue': TASK_DEFAULT_QUEUE, 'routing_key': f'{TASK_ROUTING_PREFIX}.default'},
+    'save_scenes_task': {'queue': TASK_DEFAULT_QUEUE, 'routing_key': f'{TASK_ROUTING_PREFIX}.default'},
 })
 
 if os.getenv('CELERY_ENABLE_MONITORING', 'false').lower() == 'true':
