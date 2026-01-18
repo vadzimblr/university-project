@@ -20,7 +20,7 @@ class EventPublisher:
         if exchange_name not in self._exchanges_cache:
             self._exchanges_cache[exchange_name] = Exchange(
                 exchange_name,
-                type='topic',
+                type='fanout',
                 durable=True
             )
         return self._exchanges_cache[exchange_name]
