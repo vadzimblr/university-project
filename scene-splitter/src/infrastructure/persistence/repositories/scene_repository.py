@@ -15,3 +15,14 @@ class SceneRepository:
         ).order_by(Scene.scene_number).all()
 
         return scenes
+
+    def add(self, scene: Scene, commit: bool = True) -> Scene:
+        self.db_session.add(scene)
+
+        if commit:
+            self.db_session.commit()
+            self.db_session.refresh(scene)
+        else:
+            self.db_session.flush()
+
+        return scene
