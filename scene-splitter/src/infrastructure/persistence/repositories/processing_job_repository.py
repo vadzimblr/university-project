@@ -15,7 +15,8 @@ class ProcessingJobRepository:
             document_id: str,
             start_page: int = 1,
             end_page: int = 999,
-            celery_task_id: Optional[str] = None
+            celery_task_id: Optional[str] = None,
+            commit: bool = True
     ) -> ProcessingJob:
         job = ProcessingJob(
             document_id=document_id,
@@ -24,8 +25,11 @@ class ProcessingJobRepository:
             end_page=end_page
         )
         self.db_session.add(job)
-        self.db_session.commit()
-        self.db_session.refresh(job)
+        if commit:
+            self.db_session.commit()
+            self.db_session.refresh(job)
+        else:
+            self.db_session.flush()
         return job
 
     def get_by_id(self, job_id: str) -> Optional[ProcessingJob]:
@@ -41,7 +45,8 @@ class ProcessingJobRepository:
             job_id: str,
             status: str,
             step: Optional[str] = None,
-            error_message: Optional[str] = None
+            error_message: Optional[str] = None,
+            commit: bool = True
     ) -> Optional[ProcessingJob]:
         job = self.get_by_id(job_id)
         if not job:
@@ -59,18 +64,29 @@ class ProcessingJobRepository:
         elif status in ["completed", "failed"]:
             job.completed_at = datetime.utcnow()
 
-        self.db_session.commit()
-        self.db_session.refresh(job)
+        if commit:
+            self.db_session.commit()
+            self.db_session.refresh(job)
+        else:
+            self.db_session.flush()
         return job
 
-    def update_celery_task_id(self, job_id: str, celery_task_id: str) -> Optional[ProcessingJob]:
+    def update_celery_task_id(
+            self,
+            job_id: str,
+            celery_task_id: str,
+            commit: bool = True
+    ) -> Optional[ProcessingJob]:
         job = self.get_by_id(job_id)
         if not job:
             return None
 
         job.celery_task_id = celery_task_id
-        self.db_session.commit()
-        self.db_session.refresh(job)
+        if commit:
+            self.db_session.commit()
+            self.db_session.refresh(job)
+        else:
+            self.db_session.flush()
         return job
 
     def start_processing(self, job_id: str) -> Optional[ProcessingJob]:
@@ -94,9 +110,10 @@ class ProcessingJobRepository:
             error_message=error_message
         )
 
-    def update(self, job: ProcessingJob) -> ProcessingJob:
-        self.db_session.commit()
-        self.db_session.refresh(job)
+    def update(self, job: ProcessingJob, commit: bool = True) -> ProcessingJob:
+        if commit:
+            self.db_session.commit()
+            self.db_session.refresh(job)
         return job
 
     def delete(self, job_id: str) -> bool:
