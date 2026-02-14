@@ -41,7 +41,7 @@ const boundaryLimits = computed(() => {
   const next = idx >= 0 && idx < scenes.scenes.length - 1 ? scenes.scenes[idx + 1] : null;
   return {
     minStart: prev ? prev.startIdx + 1 : 0,
-    maxEnd: next ? next.endIdx - 1 : (scenes.scenes.at(-1)?.endIdx ?? 0),
+    maxEnd: next ? next.endIdx - 1 : (scenes.scenes.length ? scenes.scenes[scenes.scenes.length - 1].endIdx : 0),
   };
 });
 const hasPrevScene = computed(() => selectedSceneIndex.value > 0);
