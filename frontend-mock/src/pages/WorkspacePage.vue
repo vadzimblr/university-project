@@ -70,7 +70,6 @@ async function generateAll() {
 function onKeys(event: KeyboardEvent) {
   if (!selectedScene.value) return;
   const currentIndex = scenes.scenes.findIndex((s) => s.id === selectedScene.value?.id);
-  if (event.key.toLowerCase() === 'a') scenes.approve(selectedScene.value.id, selectedScene.value.status !== 'approved');
   if (event.key.toLowerCase() === 'g') void generateAll();
   if (event.key === 'ArrowRight') ui.selectedSceneId = scenes.scenes[Math.min(scenes.scenes.length - 1, currentIndex + 1)]?.id ?? ui.selectedSceneId;
   if (event.key === 'ArrowLeft') ui.selectedSceneId = scenes.scenes[Math.max(0, currentIndex - 1)]?.id ?? ui.selectedSceneId;
@@ -132,6 +131,9 @@ function onKeys(event: KeyboardEvent) {
             <div class="rounded-lg border-2 border-slate-900 bg-red-50 p-2 text-xs"><b>{{ scenes.sceneStats.error }}</b><br />Errors</div>
           </div>
           <div class="mt-3 flex flex-wrap items-center gap-3">
+            <button class="rounded-xl border-2 border-slate-900 bg-white px-3 py-1.5 text-sm font-semibold" :class="scenes.segmentationApproved ? 'bg-emerald-200' : ''" @click="scenes.approveSegmentation()">
+              {{ scenes.segmentationApproved ? 'Нарезка подтверждена' : 'Подтвердить текущую нарезку сцен' }}
+            </button>
             <button class="kaboom-btn disabled:opacity-60" :disabled="scenes.isGeneratingAll || !scenes.canGenerateImages" @click="generateAll">
               {{ scenes.isGeneratingAll ? 'Генерация…' : 'Сгенерировать иллюстрации' }}
             </button>
@@ -160,7 +162,6 @@ function onKeys(event: KeyboardEvent) {
           <SceneEditor
             :scene="selectedScene"
             :illustration="scenes.illustrations[selectedScene.id]"
-            @approve="(id, approved) => scenes.approve(id, approved)"
             :min-start="boundaryLimits.minStart"
             :max-end="boundaryLimits.maxEnd"
             :has-prev="hasPrevScene"

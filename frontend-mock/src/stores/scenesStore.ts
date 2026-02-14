@@ -27,6 +27,7 @@ export const useScenesStore = defineStore('scenes', () => {
   const statusFilter = ref<'all' | SceneStatus>('all');
   const sortBy = ref<'index' | 'status'>('index');
   const isGeneratingAll = ref(false);
+  const segmentationApproved = ref(false);
   const listPage = ref(1);
   const pageSize = ref(8);
   const compactCards = ref(false);
@@ -57,7 +58,7 @@ export const useScenesStore = defineStore('scenes', () => {
   });
 
 
-  const canGenerateImages = computed(() => scenes.value.length > 0 && scenes.value.every((s) => s.status !== 'pending'));
+  const canGenerateImages = computed(() => segmentationApproved.value && scenes.value.length > 0 && scenes.value.every((s) => s.status !== 'pending'));
 
   const sceneStats = computed(() => ({
     total: scenes.value.length,
@@ -99,23 +100,24 @@ export const useScenesStore = defineStore('scenes', () => {
     }
 
     listPage.value = 1;
+    segmentationApproved.value = false;
   }
 
   function setListPage(page: number) {
     listPage.value = Math.min(Math.max(1, page), totalPages.value);
   }
 
-  function approve(sceneId: string, approved: boolean) {
-    const scene = scenes.value.find((item) => item.id === sceneId);
-    if (!scene) return;
-    scene.status = approved ? 'approved' : 'pending';
+  function invalidateSegmentationApproval() {
+    segmentationApproved.value = false;
+    scenes.value.forEach((scene) => {
+      if (scene.status === 'approved') scene.status = 'pending';
+    });
   }
 
-  function approvePaged(approved: boolean) {
-    pagedScenes.value.forEach((scene) => {
-      if (scene.status === 'pending' || scene.status === 'approved') {
-        scene.status = approved ? 'approved' : 'pending';
-      }
+  function approveSegmentation() {
+    segmentationApproved.value = true;
+    scenes.value.forEach((scene) => {
+      if (scene.status === 'pending') scene.status = 'approved';
     });
   }
 
@@ -141,6 +143,7 @@ export const useScenesStore = defineStore('scenes', () => {
     if (next) next.startIdx = safeEnd + 1;
 
     rebuildIndexes();
+    invalidateSegmentationApproval();
   }
 
   function updateBoundaries(sceneId: string, direction: 'start-' | 'start+' | 'end-' | 'end+') {
@@ -168,6 +171,7 @@ export const useScenesStore = defineStore('scenes', () => {
     }
 
     rebuildIndexes();
+    invalidateSegmentationApproval();
   }
 
   function splitScene(sceneId: string, splitAtGlobalSentenceIdx: number) {
@@ -186,6 +190,7 @@ export const useScenesStore = defineStore('scenes', () => {
 
     scenes.value.splice(idx, 1, left, right);
     rebuildIndexes();
+    invalidateSegmentationApproval();
   }
 
   function mergeWithNeighbor(sceneId: string, direction: 'prev' | 'next') {
@@ -207,6 +212,7 @@ export const useScenesStore = defineStore('scenes', () => {
     const min = Math.min(idx, otherIdx);
     scenes.value.splice(min, 2, merged);
     rebuildIndexes();
+    invalidateSegmentationApproval();
   }
 
   async function generateSingle(sceneId: string) {
@@ -262,11 +268,11 @@ export const useScenesStore = defineStore('scenes', () => {
     totalFiltered,
     totalPages,
     sceneStats,
+    segmentationApproved,
     canGenerateImages,
     segmentStory,
     setListPage,
-    approve,
-    approvePaged,
+    approveSegmentation,
     setSceneRange,
     updateBoundaries,
     splitScene,

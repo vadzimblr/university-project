@@ -16,7 +16,6 @@ const emit = defineEmits<{
   setRange: [sceneId: string, startIdx: number, endIdx: number];
   split: [sceneId: string, splitAtGlobalSentenceIdx: number];
   merge: [sceneId: string, direction: 'prev' | 'next'];
-  approve: [sceneId: string, approved: boolean];
 }>();
 
 const expanded = ref(false);
@@ -203,9 +202,7 @@ function isSelected(idx: number) {
         <h2 class="comic-title text-2xl font-black">{{ scene.title }}</h2>
         <p class="text-sm text-slate-600">Границы сцены: {{ startValue }}-{{ endValue }}</p>
       </div>
-      <button class="kaboom-btn" :class="scene.status === 'approved' ? 'bg-emerald-300' : ''" @click="emit('approve', scene.id, scene.status !== 'approved')">
-        {{ scene.status === 'approved' ? 'Unapprove' : 'Approve' }}
-      </button>
+      <span class="rounded-full border border-slate-900 bg-white px-2 py-1 text-xs font-semibold">{{ scene.status }}</span>
     </div>
 
     <div class="panel-frame">
