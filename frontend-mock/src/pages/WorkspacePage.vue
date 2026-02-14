@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import Topbar from '@/components/Topbar.vue';
 import SceneList from '@/components/SceneList.vue';
@@ -8,6 +8,7 @@ import IllustrationPanel from '@/components/IllustrationPanel.vue';
 import PromptModal from '@/components/PromptModal.vue';
 import ShortcutsModal from '@/components/ShortcutsModal.vue';
 import OnboardingBanner from '@/components/OnboardingBanner.vue';
+import StorybookReader from '@/components/StorybookReader.vue';
 import { useDocumentsStore } from '@/stores/documentsStore';
 import { useScenesStore } from '@/stores/scenesStore';
 import { useUiStore } from '@/stores/uiStore';
@@ -17,6 +18,8 @@ const router = useRouter();
 const docs = useDocumentsStore();
 const scenes = useScenesStore();
 const ui = useUiStore();
+
+const workspaceMode = ref<'editor' | 'reader'>('reader');
 
 onMounted(() => {
   const id = String(route.params.id);
@@ -79,8 +82,16 @@ function onKeys(event: KeyboardEvent) {
       @toggle-drawer="ui.leftDrawerOpen = !ui.leftDrawerOpen"
     />
 
+    <div class="mx-auto mt-3 flex w-full max-w-[1680px] items-center justify-between px-3">
+      <div class="rounded-xl border-2 border-slate-900 bg-white p-1 text-sm font-semibold">
+        <button class="rounded-lg px-3 py-1" :class="workspaceMode === 'editor' ? 'bg-slate-900 text-white' : ''" @click="workspaceMode = 'editor'">Editor mode</button>
+        <button class="rounded-lg px-3 py-1" :class="workspaceMode === 'reader' ? 'bg-slate-900 text-white' : ''" @click="workspaceMode = 'reader'">Storybook mode</button>
+      </div>
+      <p class="text-xs text-slate-600">Reader mode — цельный просмотр как книга, Editor mode — точная правка.</p>
+    </div>
+
     <main class="mx-auto grid max-w-[1680px] grid-cols-1 gap-3 p-3 lg:grid-cols-[360px_1fr]">
-      <div :class="['lg:block', ui.leftDrawerOpen ? 'block' : 'hidden']">
+      <div v-if="workspaceMode === 'editor'" :class="['lg:block', ui.leftDrawerOpen ? 'block' : 'hidden']">
         <SceneList
           :scenes="scenes.pagedScenes"
           :illustrations="scenes.illustrations"
@@ -106,10 +117,16 @@ function onKeys(event: KeyboardEvent) {
         />
       </div>
 
-      <section class="space-y-3">
+      <section class="space-y-3" :class="workspaceMode === 'reader' ? 'lg:col-span-2' : ''">
         <OnboardingBanner v-if="ui.showOnboardingBanner" @close="ui.dismissOnboarding()" />
 
-        <div class="comic-card bg-white p-4">
+        <StorybookReader
+          v-if="workspaceMode === 'reader'"
+          :scenes="scenes.scenes"
+          :illustrations="scenes.illustrations"
+        />
+
+        <div v-if="workspaceMode === 'editor'" class="comic-card bg-white p-4">
           <div class="grid gap-2 md:grid-cols-4">
             <div class="rounded-lg border-2 border-slate-900 bg-slate-50 p-2 text-xs"><b>{{ scenes.sceneStats.total }}</b><br />Total scenes</div>
             <div class="rounded-lg border-2 border-slate-900 bg-emerald-50 p-2 text-xs"><b>{{ scenes.sceneStats.approved }}</b><br />Approved</div>
@@ -125,7 +142,7 @@ function onKeys(event: KeyboardEvent) {
           <p class="mt-2 text-xs text-slate-500">Каждая 7-я сцена падает в error для демонстрации retry.</p>
         </div>
 
-        <div v-if="storyboardReady.length" class="comic-card bg-white p-3">
+        <div v-if="workspaceMode === 'editor' && storyboardReady.length" class="comic-card bg-white p-3">
           <p class="comic-title mb-2 text-sm font-black">Storyboard strip (preview результата)</p>
           <div class="flex gap-2 overflow-x-auto pb-1">
             <button
@@ -140,7 +157,7 @@ function onKeys(event: KeyboardEvent) {
           </div>
         </div>
 
-        <div v-if="selectedScene" class="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
+        <div v-if="workspaceMode === 'editor' && selectedScene" class="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
           <SceneEditor
             :scene="selectedScene"
             @approve="(id, approved) => scenes.approve(id, approved)"
