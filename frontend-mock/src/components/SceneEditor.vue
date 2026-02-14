@@ -22,7 +22,9 @@ const expanded = ref(false);
 const splitIdx = ref<number | null>(null);
 const startValue = ref(props.scene.startIdx);
 const endValue = ref(props.scene.endIdx);
-const defaultHint = 'Перетаскивайте только крайние предложения текущей сцены в соседние зоны.';
+const activeDropZone = ref<'prev' | 'next' | null>(null);
+const draggingEdge = ref<'head' | 'tail' | null>(null);
+const defaultHint = 'Тяни первое предложение влево (prev) или последнее вправо (next). Середина не переносится.';
 const dragHint = ref(defaultHint);
 
 watch(
@@ -31,6 +33,8 @@ watch(
     startValue.value = next.startIdx;
     endValue.value = next.endIdx;
     splitIdx.value = null;
+    draggingEdge.value = null;
+    activeDropZone.value = null;
     dragHint.value = defaultHint;
   },
   { deep: true },
@@ -55,43 +59,62 @@ function onSentenceDragStart(event: DragEvent, localIdx: number) {
 
   if (isHead && canMoveHead.value) {
     event.dataTransfer?.setData('text/plain', 'head');
-    dragHint.value = 'Отпустите в зоне «Контекст до», чтобы отдать первое предложение в previous scene.';
+    draggingEdge.value = 'head';
+    dragHint.value = 'Отпустите в зоне PREV, чтобы передать первое предложение в предыдущую сцену.';
     return;
   }
 
   if (isTail && canMoveTail.value) {
     event.dataTransfer?.setData('text/plain', 'tail');
-    dragHint.value = 'Отпустите в зоне «Контекст после», чтобы отдать последнее предложение в next scene.';
+    draggingEdge.value = 'tail';
+    dragHint.value = 'Отпустите в зоне NEXT, чтобы передать последнее предложение в следующую сцену.';
     return;
   }
 
   event.preventDefault();
 }
 
-function allowDrop(event: DragEvent) {
+function onSentenceDragEnd() {
+  draggingEdge.value = null;
+  activeDropZone.value = null;
+  dragHint.value = defaultHint;
+}
+
+function allowDrop(event: DragEvent, zone: 'prev' | 'next') {
   event.preventDefault();
+  activeDropZone.value = zone;
+}
+
+function onLeaveDropZone() {
+  activeDropZone.value = null;
 }
 
 function onDropToPrev(event: DragEvent) {
   event.preventDefault();
   const payload = event.dataTransfer?.getData('text/plain');
+  activeDropZone.value = null;
+
   if (payload !== 'head' || !canMoveHead.value) {
-    dragHint.value = 'В previous scene можно переносить только первое предложение текущей сцены.';
+    dragHint.value = 'В PREV переносится только первое предложение текущей сцены.';
     return;
   }
+
   commitRange(startValue.value + 1, endValue.value);
-  dragHint.value = 'Готово: первое предложение передано в previous scene.';
+  dragHint.value = 'Сдвиг применён: первое предложение ушло в предыдущую сцену.';
 }
 
 function onDropToNext(event: DragEvent) {
   event.preventDefault();
   const payload = event.dataTransfer?.getData('text/plain');
+  activeDropZone.value = null;
+
   if (payload !== 'tail' || !canMoveTail.value) {
-    dragHint.value = 'В next scene можно переносить только последнее предложение текущей сцены.';
+    dragHint.value = 'В NEXT переносится только последнее предложение текущей сцены.';
     return;
   }
+
   commitRange(startValue.value, endValue.value - 1);
-  dragHint.value = 'Готово: последнее предложение передано в next scene.';
+  dragHint.value = 'Сдвиг применён: последнее предложение ушло в следующую сцену.';
 }
 
 function pickSplit(localIdx: number) {
@@ -102,11 +125,11 @@ function pickSplit(localIdx: number) {
 <template>
   <section class="comic-card space-y-4 bg-white p-4">
     <div class="rounded-lg border-2 border-slate-900 bg-amber-50 p-3 text-sm">
-      <p class="font-black">Как пользоваться</p>
+      <p class="font-black">Редактирование границ — drag &amp; drop</p>
       <ol class="mt-1 list-decimal pl-5 text-xs text-slate-700">
-        <li>Зажмите и перетащите <b>первое</b> или <b>последнее</b> предложение текущей сцены.</li>
-        <li>Бросьте в «Контекст до» или «Контекст после», чтобы передвинуть границу.</li>
-        <li>Средние предложения переносить нельзя — только края сцены.</li>
+        <li>Перетаскивайте <b>только первое</b> или <b>только последнее</b> предложение текущей сцены.</li>
+        <li>Зона <b>PREV</b> принимает только первое, зона <b>NEXT</b> — только последнее.</li>
+        <li>Средние предложения всегда зафиксированы внутри сцены.</li>
       </ol>
     </div>
 
@@ -121,7 +144,7 @@ function pickSplit(localIdx: number) {
     </div>
 
     <div class="rounded-xl border-2 border-slate-900 bg-white p-3">
-      <p class="text-sm font-semibold">Ручное распределение drag &amp; drop</p>
+      <p class="text-sm font-semibold">Подсказка</p>
       <p class="mt-1 text-xs text-slate-600">{{ dragHint }}</p>
       <p class="mt-2 text-xs text-slate-500">Ограничение: в сцене всегда остаётся минимум 2 предложения.</p>
     </div>
@@ -132,11 +155,21 @@ function pickSplit(localIdx: number) {
     </div>
 
     <div class="grid gap-2 md:grid-cols-3">
-      <div class="story-strip" :class="hasPrev ? 'border-emerald-700 bg-emerald-50' : ''" @dragover="allowDrop" @drop="onDropToPrev">
-        <p class="mb-1 text-xs font-bold uppercase text-slate-500">Контекст до</p>
-        <p v-if="hasPrev" class="mb-1 text-[11px] font-semibold text-emerald-700">Drop первого предложения сюда → previous scene</p>
+      <div
+        class="story-strip border-2 border-dashed"
+        :class="[
+          hasPrev ? 'border-emerald-700 bg-emerald-50' : 'border-slate-300 bg-slate-50',
+          activeDropZone === 'prev' ? 'ring-2 ring-emerald-500' : '',
+        ]"
+        @dragover="allowDrop($event, 'prev')"
+        @dragleave="onLeaveDropZone"
+        @drop="onDropToPrev"
+      >
+        <p class="mb-1 text-xs font-bold uppercase text-slate-500">Контекст до · PREV</p>
+        <p v-if="hasPrev" class="mb-1 text-[11px] font-semibold text-emerald-700">Drop первого предложения сюда</p>
         <p class="text-xs text-slate-600">{{ before.join(' ') || '—' }}</p>
       </div>
+
       <div class="story-strip border-slate-900 bg-blue-50">
         <p class="mb-1 text-xs font-bold uppercase text-slate-700">Текущая сцена (drag края / клик для split)</p>
         <ul class="max-h-72 space-y-1 overflow-y-auto">
@@ -151,7 +184,7 @@ function pickSplit(localIdx: number) {
             ]"
             :draggable="(localIdx === 0 && canMoveHead) || (localIdx === inside.length - 1 && canMoveTail)"
             @dragstart="onSentenceDragStart($event, localIdx)"
-            @dragend="dragHint = defaultHint"
+            @dragend="onSentenceDragEnd"
             @click="pickSplit(localIdx)"
           >
             <span class="mr-1 text-[10px] text-slate-400">{{ startValue + localIdx }}.</span>
@@ -159,9 +192,19 @@ function pickSplit(localIdx: number) {
           </li>
         </ul>
       </div>
-      <div class="story-strip" :class="hasNext ? 'border-violet-700 bg-violet-50' : ''" @dragover="allowDrop" @drop="onDropToNext">
-        <p class="mb-1 text-xs font-bold uppercase text-slate-500">Контекст после</p>
-        <p v-if="hasNext" class="mb-1 text-[11px] font-semibold text-violet-700">Drop последнего предложения сюда → next scene</p>
+
+      <div
+        class="story-strip border-2 border-dashed"
+        :class="[
+          hasNext ? 'border-violet-700 bg-violet-50' : 'border-slate-300 bg-slate-50',
+          activeDropZone === 'next' ? 'ring-2 ring-violet-500' : '',
+        ]"
+        @dragover="allowDrop($event, 'next')"
+        @dragleave="onLeaveDropZone"
+        @drop="onDropToNext"
+      >
+        <p class="mb-1 text-xs font-bold uppercase text-slate-500">Контекст после · NEXT</p>
+        <p v-if="hasNext" class="mb-1 text-[11px] font-semibold text-violet-700">Drop последнего предложения сюда</p>
         <p class="text-xs text-slate-600">{{ after.join(' ') || '—' }}</p>
       </div>
     </div>
