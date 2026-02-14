@@ -5,6 +5,7 @@ const props = defineProps<{
   scene: Scene;
   illustration?: Illustration;
   selected?: boolean;
+  compact?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -35,7 +36,7 @@ const statusStyles = {
     <div class="mb-2 flex items-center gap-2">
       <img v-if="illustration" :src="illustration.imageUrl" alt="thumb" class="h-10 w-16 rounded border-2 border-slate-900 object-cover" />
       <div v-else class="flex h-10 w-16 items-center justify-center rounded border-2 border-dashed border-slate-400 bg-slate-100 text-[10px] text-slate-500">panel</div>
-      <p class="line-clamp-2 text-xs text-slate-700">{{ props.scene.text }}</p>
+      <p class="text-xs text-slate-700" :class="compact ? 'line-clamp-1' : 'line-clamp-2'">{{ props.scene.text }}</p>
     </div>
 
     <div class="flex flex-wrap gap-2 text-xs">

@@ -21,7 +21,7 @@ const ui = useUiStore();
 onMounted(() => {
   const id = String(route.params.id);
   docs.setActiveDocument(id);
-  if (!scenes.scenes.length) scenes.segmentStory();
+  if (!scenes.scenes.length) scenes.segmentStory(14);
   if (!ui.selectedSceneId && scenes.scenes.length) ui.selectedSceneId = scenes.scenes[0].id;
   window.addEventListener('keydown', onKeys);
 });
@@ -41,8 +41,16 @@ const promptText = computed(() => {
   return scenes.illustrations[ui.promptSceneId]?.promptPreview ?? 'Prompt will appear after generation.';
 });
 
+const storyboardReady = computed(() =>
+  scenes.scenes
+    .filter((scene) => scene.status === 'ready')
+    .slice(0, 10)
+    .map((scene) => ({ scene, illustration: scenes.illustrations[scene.id] }))
+    .filter((item) => item.illustration),
+);
+
 function resetSegmentation() {
-  scenes.segmentStory();
+  scenes.segmentStory(14);
   ui.selectedSceneId = scenes.scenes[0]?.id ?? null;
 }
 
@@ -71,21 +79,30 @@ function onKeys(event: KeyboardEvent) {
       @toggle-drawer="ui.leftDrawerOpen = !ui.leftDrawerOpen"
     />
 
-    <main class="mx-auto grid max-w-[1600px] grid-cols-1 gap-3 p-3 lg:grid-cols-[360px_1fr]">
+    <main class="mx-auto grid max-w-[1680px] grid-cols-1 gap-3 p-3 lg:grid-cols-[360px_1fr]">
       <div :class="['lg:block', ui.leftDrawerOpen ? 'block' : 'hidden']">
         <SceneList
-          :scenes="scenes.filteredScenes"
+          :scenes="scenes.pagedScenes"
           :illustrations="scenes.illustrations"
           :selected-scene-id="ui.selectedSceneId"
           :search="scenes.search"
           :status-filter="scenes.statusFilter"
           :sort-by="scenes.sortBy"
+          :list-page="scenes.listPage"
+          :total-pages="scenes.totalPages"
+          :total-filtered="scenes.totalFiltered"
+          :page-size="scenes.pageSize"
+          :compact-cards="scenes.compactCards"
           @choose="ui.selectedSceneId = $event; ui.leftDrawerOpen = false"
           @approve="(id, approved) => scenes.approve(id, approved)"
           @regenerate="scenes.generateSingle($event)"
-          @update-search="scenes.search = $event"
-          @update-status-filter="scenes.statusFilter = $event"
+          @update-search="scenes.search = $event; scenes.setListPage(1)"
+          @update-status-filter="scenes.statusFilter = $event; scenes.setListPage(1)"
           @update-sort-by="scenes.sortBy = $event"
+          @update-page="scenes.setListPage($event)"
+          @update-page-size="scenes.pageSize = $event; scenes.setListPage(1)"
+          @toggle-compact="scenes.compactCards = $event"
+          @approve-page="scenes.approvePaged($event)"
         />
       </div>
 
@@ -93,13 +110,34 @@ function onKeys(event: KeyboardEvent) {
         <OnboardingBanner v-if="ui.showOnboardingBanner" @close="ui.dismissOnboarding()" />
 
         <div class="comic-card bg-white p-4">
-          <div class="flex flex-wrap items-center gap-3">
+          <div class="grid gap-2 md:grid-cols-4">
+            <div class="rounded-lg border-2 border-slate-900 bg-slate-50 p-2 text-xs"><b>{{ scenes.sceneStats.total }}</b><br />Total scenes</div>
+            <div class="rounded-lg border-2 border-slate-900 bg-emerald-50 p-2 text-xs"><b>{{ scenes.sceneStats.approved }}</b><br />Approved</div>
+            <div class="rounded-lg border-2 border-slate-900 bg-blue-50 p-2 text-xs"><b>{{ scenes.sceneStats.ready }}</b><br />Ready panels</div>
+            <div class="rounded-lg border-2 border-slate-900 bg-red-50 p-2 text-xs"><b>{{ scenes.sceneStats.error }}</b><br />Errors</div>
+          </div>
+          <div class="mt-3 flex flex-wrap items-center gap-3">
             <button class="kaboom-btn disabled:opacity-60" :disabled="scenes.isGeneratingAll" @click="generateAll">
               {{ scenes.isGeneratingAll ? 'Генерация…' : 'Сгенерировать иллюстрации' }}
             </button>
-            <p class="text-xs text-slate-600">Режим storybook: генерируем только approved/error и поддерживаем темп повествования.</p>
+            <p class="text-xs text-slate-600">Для 100+ страниц: используйте page-size, compact list и batch approve текущей страницы.</p>
           </div>
           <p class="mt-2 text-xs text-slate-500">Каждая 7-я сцена падает в error для демонстрации retry.</p>
+        </div>
+
+        <div v-if="storyboardReady.length" class="comic-card bg-white p-3">
+          <p class="comic-title mb-2 text-sm font-black">Storyboard strip (preview результата)</p>
+          <div class="flex gap-2 overflow-x-auto pb-1">
+            <button
+              v-for="item in storyboardReady"
+              :key="item.scene.id"
+              class="min-w-40 rounded-lg border-2 border-slate-900 bg-white p-1 text-left"
+              @click="ui.selectedSceneId = item.scene.id"
+            >
+              <img :src="item.illustration?.imageUrl" alt="panel" class="h-20 w-full rounded border border-slate-900 object-cover" />
+              <p class="mt-1 text-[11px] font-semibold">#{{ item.scene.index }} {{ item.scene.title }}</p>
+            </button>
+          </div>
         </div>
 
         <div v-if="selectedScene" class="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">

@@ -27,6 +27,9 @@ export const useScenesStore = defineStore('scenes', () => {
   const statusFilter = ref<'all' | SceneStatus>('all');
   const sortBy = ref<'index' | 'status'>('index');
   const isGeneratingAll = ref(false);
+  const listPage = ref(1);
+  const pageSize = ref(8);
+  const compactCards = ref(false);
 
   const filteredScenes = computed(() => {
     const lowered = search.value.trim().toLowerCase();
@@ -44,6 +47,22 @@ export const useScenesStore = defineStore('scenes', () => {
     });
   });
 
+  const totalFiltered = computed(() => filteredScenes.value.length);
+  const totalPages = computed(() => Math.max(1, Math.ceil(totalFiltered.value / pageSize.value)));
+
+  const pagedScenes = computed(() => {
+    const safePage = Math.min(Math.max(1, listPage.value), totalPages.value);
+    const start = (safePage - 1) * pageSize.value;
+    return filteredScenes.value.slice(start, start + pageSize.value);
+  });
+
+  const sceneStats = computed(() => ({
+    total: scenes.value.length,
+    approved: scenes.value.filter((s) => s.status === 'approved').length,
+    ready: scenes.value.filter((s) => s.status === 'ready').length,
+    error: scenes.value.filter((s) => s.status === 'error').length,
+  }));
+
   function rebuildIndexes() {
     scenes.value.forEach((scene, idx) => {
       scene.index = idx + 1;
@@ -52,10 +71,9 @@ export const useScenesStore = defineStore('scenes', () => {
     });
   }
 
-  function segmentStory() {
+  function segmentStory(targetScenes = 12) {
     scenes.value = [];
     illustrations.value = {};
-    const targetScenes = 10;
     let cursor = 0;
 
     for (let i = 0; i < targetScenes; i += 1) {
@@ -76,12 +94,26 @@ export const useScenesStore = defineStore('scenes', () => {
         status: 'pending',
       });
     }
+
+    listPage.value = 1;
+  }
+
+  function setListPage(page: number) {
+    listPage.value = Math.min(Math.max(1, page), totalPages.value);
   }
 
   function approve(sceneId: string, approved: boolean) {
     const scene = scenes.value.find((item) => item.id === sceneId);
     if (!scene) return;
     scene.status = approved ? 'approved' : 'pending';
+  }
+
+  function approvePaged(approved: boolean) {
+    pagedScenes.value.forEach((scene) => {
+      if (scene.status === 'pending' || scene.status === 'approved') {
+        scene.status = approved ? 'approved' : 'pending';
+      }
+    });
   }
 
   function updateBoundaries(sceneId: string, direction: 'start-' | 'start+' | 'end-' | 'end+') {
@@ -193,10 +225,19 @@ export const useScenesStore = defineStore('scenes', () => {
     search,
     statusFilter,
     sortBy,
-    filteredScenes,
     isGeneratingAll,
+    listPage,
+    pageSize,
+    compactCards,
+    filteredScenes,
+    pagedScenes,
+    totalFiltered,
+    totalPages,
+    sceneStats,
     segmentStory,
+    setListPage,
     approve,
+    approvePaged,
     updateBoundaries,
     splitScene,
     mergeWithNeighbor,
