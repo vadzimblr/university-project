@@ -34,6 +34,16 @@ onUnmounted(() => {
 });
 
 const selectedScene = computed(() => scenes.scenes.find((scene) => scene.id === ui.selectedSceneId) ?? null);
+const selectedSceneIndex = computed(() => scenes.scenes.findIndex((scene) => scene.id === ui.selectedSceneId));
+const boundaryLimits = computed(() => {
+  const idx = selectedSceneIndex.value;
+  const prev = idx > 0 ? scenes.scenes[idx - 1] : null;
+  const next = idx >= 0 && idx < scenes.scenes.length - 1 ? scenes.scenes[idx + 1] : null;
+  return {
+    minStart: prev ? prev.startIdx + 1 : 0,
+    maxEnd: next ? next.endIdx - 1 : (scenes.scenes.at(-1)?.endIdx ?? 0),
+  };
+});
 const stepStage = computed(() => {
   if (scenes.isGeneratingAll) return 'generate' as const;
   return 'review' as const;
@@ -161,7 +171,9 @@ function onKeys(event: KeyboardEvent) {
           <SceneEditor
             :scene="selectedScene"
             @approve="(id, approved) => scenes.approve(id, approved)"
-            @boundary-shift="(id, direction) => scenes.updateBoundaries(id, direction)"
+            :min-start="boundaryLimits.minStart"
+            :max-end="boundaryLimits.maxEnd"
+            @set-range="(id, startIdx, endIdx) => scenes.setSceneRange(id, startIdx, endIdx)"
             @split="(id, splitAt) => scenes.splitScene(id, splitAt)"
             @merge="(id, direction) => scenes.mergeWithNeighbor(id, direction)"
           />

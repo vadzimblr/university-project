@@ -116,6 +116,30 @@ export const useScenesStore = defineStore('scenes', () => {
     });
   }
 
+
+  function setSceneRange(sceneId: string, newStart: number, newEnd: number) {
+    const idx = scenes.value.findIndex((s) => s.id === sceneId);
+    if (idx === -1) return;
+
+    const scene = scenes.value[idx];
+    const prev = scenes.value[idx - 1];
+    const next = scenes.value[idx + 1];
+
+    const minStart = prev ? prev.startIdx + 1 : 0;
+    const maxEnd = next ? next.endIdx - 1 : storySentences.length - 1;
+
+    const safeStart = Math.max(minStart, Math.min(newStart, maxEnd - 1));
+    const safeEnd = Math.max(safeStart + 1, Math.min(newEnd, maxEnd));
+
+    scene.startIdx = safeStart;
+    scene.endIdx = safeEnd;
+
+    if (prev) prev.endIdx = safeStart - 1;
+    if (next) next.startIdx = safeEnd + 1;
+
+    rebuildIndexes();
+  }
+
   function updateBoundaries(sceneId: string, direction: 'start-' | 'start+' | 'end-' | 'end+') {
     const idx = scenes.value.findIndex((s) => s.id === sceneId);
     if (idx === -1) return;
@@ -238,6 +262,7 @@ export const useScenesStore = defineStore('scenes', () => {
     setListPage,
     approve,
     approvePaged,
+    setSceneRange,
     updateBoundaries,
     splitScene,
     mergeWithNeighbor,
