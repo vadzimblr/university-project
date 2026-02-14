@@ -22,19 +22,20 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <aside class="h-full border-r border-slate-200 bg-slate-50 p-3">
+  <aside class="comic-card h-full bg-orange-50 p-3">
     <div class="mb-3 space-y-2">
+      <p class="comic-title text-sm font-black">Storyboard Scenes</p>
       <input
         :value="search"
         type="text"
         placeholder="Поиск сцен..."
-        class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+        class="w-full rounded-lg border-2 border-slate-900 px-3 py-2 text-sm"
         @input="emit('updateSearch', ($event.target as HTMLInputElement).value)"
       />
       <div class="flex gap-2">
         <select
           :value="statusFilter"
-          class="w-1/2 rounded-lg border border-slate-200 px-2 py-2 text-sm"
+          class="w-1/2 rounded-lg border-2 border-slate-900 px-2 py-2 text-sm"
           @change="emit('updateStatusFilter', ($event.target as HTMLSelectElement).value as any)"
         >
           <option value="all">Все статусы</option>
@@ -46,16 +47,16 @@ const emit = defineEmits<{
         </select>
         <select
           :value="sortBy"
-          class="w-1/2 rounded-lg border border-slate-200 px-2 py-2 text-sm"
+          class="w-1/2 rounded-lg border-2 border-slate-900 px-2 py-2 text-sm"
           @change="emit('updateSortBy', ($event.target as HTMLSelectElement).value as any)"
         >
-          <option value="index">Сорт: по номеру</option>
-          <option value="status">Сорт: по статусу</option>
+          <option value="index">Сорт: номер</option>
+          <option value="status">Сорт: статус</option>
         </select>
       </div>
     </div>
 
-    <div class="space-y-2 overflow-y-auto pb-10" style="max-height: calc(100vh - 190px)">
+    <div class="space-y-2 overflow-y-auto pb-10" style="max-height: calc(100vh - 210px)">
       <SceneCard
         v-for="scene in scenes"
         :key="scene.id"

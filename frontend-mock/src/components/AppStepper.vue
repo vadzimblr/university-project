@@ -14,19 +14,19 @@ function isComplete(stepKey: string) {
 </script>
 
 <template>
-  <ol class="flex items-center gap-3 text-xs text-slate-500 md:text-sm">
-    <li v-for="step in steps" :key="step.key" class="flex items-center gap-3">
+  <ol class="hidden items-center gap-2 text-xs text-slate-700 md:flex">
+    <li v-for="step in steps" :key="step.key" class="flex items-center gap-2">
       <span
-        class="flex h-7 w-7 items-center justify-center rounded-full border"
+        class="flex h-7 w-7 items-center justify-center rounded-md border-2 border-slate-900 font-bold"
         :class="[
-          step.key === stage ? 'border-brand-600 bg-brand-600 text-white' : '',
-          isComplete(step.key) ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-300 bg-white',
+          step.key === stage ? 'bg-blue-400 text-white' : 'bg-white',
+          isComplete(step.key) ? 'bg-emerald-400 text-white' : '',
         ]"
       >
         {{ steps.findIndex((s) => s.key === step.key) + 1 }}
       </span>
-      <span class="hidden md:inline">{{ step.label }}</span>
-      <span v-if="step.key !== 'generate'" class="hidden h-px w-8 bg-slate-300 md:inline" />
+      <span class="font-semibold">{{ step.label }}</span>
+      <span v-if="step.key !== 'generate'" class="h-0.5 w-6 bg-slate-900" />
     </li>
   </ol>
 </template>

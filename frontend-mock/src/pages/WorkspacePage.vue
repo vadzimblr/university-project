@@ -53,23 +53,15 @@ async function generateAll() {
 function onKeys(event: KeyboardEvent) {
   if (!selectedScene.value) return;
   const currentIndex = scenes.scenes.findIndex((s) => s.id === selectedScene.value?.id);
-  if (event.key.toLowerCase() === 'a') {
-    scenes.approve(selectedScene.value.id, selectedScene.value.status !== 'approved');
-  }
-  if (event.key.toLowerCase() === 'g') {
-    void generateAll();
-  }
-  if (event.key === 'ArrowRight') {
-    ui.selectedSceneId = scenes.scenes[Math.min(scenes.scenes.length - 1, currentIndex + 1)]?.id ?? ui.selectedSceneId;
-  }
-  if (event.key === 'ArrowLeft') {
-    ui.selectedSceneId = scenes.scenes[Math.max(0, currentIndex - 1)]?.id ?? ui.selectedSceneId;
-  }
+  if (event.key.toLowerCase() === 'a') scenes.approve(selectedScene.value.id, selectedScene.value.status !== 'approved');
+  if (event.key.toLowerCase() === 'g') void generateAll();
+  if (event.key === 'ArrowRight') ui.selectedSceneId = scenes.scenes[Math.min(scenes.scenes.length - 1, currentIndex + 1)]?.id ?? ui.selectedSceneId;
+  if (event.key === 'ArrowLeft') ui.selectedSceneId = scenes.scenes[Math.max(0, currentIndex - 1)]?.id ?? ui.selectedSceneId;
 }
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-100">
+  <div class="min-h-screen bg-transparent">
     <Topbar
       :document-name="docs.activeDocument?.name ?? 'Unknown document'"
       :stage="stepStage"
@@ -100,15 +92,14 @@ function onKeys(event: KeyboardEvent) {
       <section class="space-y-3">
         <OnboardingBanner v-if="ui.showOnboardingBanner" @close="ui.dismissOnboarding()" />
 
-        <div class="rounded-xl border border-slate-200 bg-white p-4">
-          <button
-            class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-            :disabled="scenes.isGeneratingAll"
-            @click="generateAll"
-          >
-            {{ scenes.isGeneratingAll ? 'Генерация…' : 'Сгенерировать иллюстрации' }}
-          </button>
-          <p class="mt-1 text-xs text-slate-500">Будут обработаны approved/error сцены. Каждая 7-я сцена падает в error для демо Retry.</p>
+        <div class="comic-card bg-white p-4">
+          <div class="flex flex-wrap items-center gap-3">
+            <button class="kaboom-btn disabled:opacity-60" :disabled="scenes.isGeneratingAll" @click="generateAll">
+              {{ scenes.isGeneratingAll ? 'Генерация…' : 'Сгенерировать иллюстрации' }}
+            </button>
+            <p class="text-xs text-slate-600">Режим storybook: генерируем только approved/error и поддерживаем темп повествования.</p>
+          </div>
+          <p class="mt-2 text-xs text-slate-500">Каждая 7-я сцена падает в error для демонстрации retry.</p>
         </div>
 
         <div v-if="selectedScene" class="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">

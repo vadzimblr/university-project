@@ -43,9 +43,7 @@ function startMockFlow() {
         uiStore.processingStage = 'done';
         scenesStore.segmentStory();
         uiStore.selectedSceneId = scenesStore.scenes[0]?.id ?? null;
-        if (documentsStore.activeDocumentId) {
-          router.push(`/doc/${documentsStore.activeDocumentId}`);
-        }
+        if (documentsStore.activeDocumentId) router.push(`/doc/${documentsStore.activeDocumentId}`);
       }
     }
   }, 260);
@@ -58,48 +56,49 @@ onUnmounted(() => {
 
 <template>
   <main class="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-4 py-10 lg:px-6">
-    <section>
-      <h1 class="text-2xl font-bold">PDF Story Illustration — Mock Upload</h1>
-      <p class="text-slate-600">Загрузите PDF, дождитесь сегментации, затем отредактируйте сцены и запустите генерацию.</p>
+    <section class="comic-card halftone p-6">
+      <p class="text-xs font-bold uppercase tracking-[0.3em] text-slate-500">Storybook AI Studio</p>
+      <h1 class="comic-title mt-2 text-3xl font-black md:text-4xl">Преврати рассказ из PDF в комикс-кадры</h1>
+      <p class="mt-3 max-w-3xl text-slate-700">Не просто “сгенерировать картинки”: собери визуальную историю с правильными границами сцен, ритмом и атмосферой.</p>
     </section>
 
     <section
-      class="rounded-2xl border-2 border-dashed bg-white p-10 text-center"
-      :class="dragOver ? 'border-brand-500 bg-brand-50' : 'border-slate-300'"
+      class="comic-card bg-white p-10 text-center"
+      :class="dragOver ? 'ring-4 ring-blue-300' : ''"
       @dragover.prevent="dragOver = true"
       @dragleave.prevent="dragOver = false"
       @drop.prevent="dragOver = false; selectDocument('Новый рассказ.pdf')"
     >
-      <p class="text-lg font-semibold">Перетащите PDF сюда</p>
-      <p class="mt-1 text-sm text-slate-500">или используйте кнопку ниже</p>
-      <button class="mt-4 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white" @click="selectDocument('Новый рассказ.pdf')">
-        Выбрать PDF
-      </button>
+      <p class="text-2xl font-black comic-title">DROP PDF!</p>
+      <p class="mt-2 text-sm text-slate-600">Перетащите файл в панель или выберите его вручную.</p>
+      <button class="kaboom-btn mt-4" @click="selectDocument('Новый рассказ.pdf')">Выбрать PDF</button>
     </section>
 
-    <section class="rounded-xl border border-slate-200 bg-white p-4">
-      <h2 class="mb-3 text-lg font-semibold">Недавние документы</h2>
+    <section class="comic-card bg-white p-4">
+      <h2 class="comic-title mb-3 text-lg font-black">Недавние документы</h2>
       <ul class="space-y-2">
-        <li v-for="doc in documentsStore.recentDocuments" :key="doc.id" class="flex items-center justify-between rounded-lg border border-slate-100 p-3">
-          <div>
-            <p class="font-medium">{{ doc.name }}</p>
-            <p class="text-xs text-slate-500">{{ doc.pagesCount }} pages · {{ new Date(doc.uploadedAt).toLocaleString() }}</p>
+        <li v-for="doc in documentsStore.recentDocuments" :key="doc.id" class="rounded-xl border-2 border-slate-200 bg-slate-50 p-3">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="font-semibold">{{ doc.name }}</p>
+              <p class="text-xs text-slate-500">{{ doc.pagesCount }} pages · {{ new Date(doc.uploadedAt).toLocaleString() }}</p>
+            </div>
+            <button class="kaboom-btn" @click="openRecent(doc.id)">Открыть</button>
           </div>
-          <button class="rounded-lg border border-slate-200 px-3 py-1.5 text-sm" @click="openRecent(doc.id)">Открыть</button>
         </li>
       </ul>
     </section>
 
-    <section v-if="isProcessing" class="rounded-xl border border-slate-200 bg-white p-4">
-      <h3 class="text-base font-semibold">Processing</h3>
+    <section v-if="isProcessing" class="comic-card bg-white p-4">
+      <h3 class="comic-title text-base font-black">Подготовка комикса</h3>
       <div class="mt-3 space-y-3">
         <div>
-          <p class="mb-1 text-sm">Upload: {{ uiStore.uploadProgress }}%</p>
-          <div class="h-2 rounded bg-slate-100"><div class="h-2 rounded bg-brand-600" :style="{ width: `${uiStore.uploadProgress}%` }" /></div>
+          <p class="mb-1 text-sm font-medium">Upload: {{ uiStore.uploadProgress }}%</p>
+          <div class="h-3 rounded-full border-2 border-slate-900 bg-slate-100"><div class="h-full rounded-full bg-blue-500" :style="{ width: `${uiStore.uploadProgress}%` }" /></div>
         </div>
         <div>
-          <p class="mb-1 text-sm">Segmenting: {{ uiStore.segmentationProgress }}%</p>
-          <div class="h-2 rounded bg-slate-100"><div class="h-2 rounded bg-emerald-600" :style="{ width: `${uiStore.segmentationProgress}%` }" /></div>
+          <p class="mb-1 text-sm font-medium">Segmenting: {{ uiStore.segmentationProgress }}%</p>
+          <div class="h-3 rounded-full border-2 border-slate-900 bg-slate-100"><div class="h-full rounded-full bg-emerald-500" :style="{ width: `${uiStore.segmentationProgress}%` }" /></div>
         </div>
       </div>
     </section>
