@@ -61,6 +61,41 @@ body {
   @apply rounded-xl border-2 border-slate-900 bg-yellow-300 px-3 py-1.5 text-sm font-semibold text-slate-900 shadow-[3px_3px_0_#111827] transition hover:-translate-y-0.5;
 }
 
+.reader-chip {
+  @apply flex items-center gap-2 rounded-lg border-2 border-slate-900 bg-white px-2 py-1 text-xs font-semibold;
+}
+
+.reader-select {
+  @apply rounded border border-slate-700 bg-white px-1.5 py-0.5 text-xs;
+}
+
+.reader-scene {
+  @apply shadow-[5px_5px_0_#111827] transition duration-200 hover:-translate-y-0.5;
+}
+
+.reader-cinematic {
+  position: relative;
+}
+
+.reader-cinematic::before,
+.reader-cinematic::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 16px;
+  background: rgba(15, 23, 42, 0.55);
+  z-index: 2;
+}
+
+.reader-cinematic::before {
+  top: 0;
+}
+
+.reader-cinematic::after {
+  bottom: 0;
+}
+
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
