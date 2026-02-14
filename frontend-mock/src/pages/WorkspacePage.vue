@@ -44,6 +44,8 @@ const boundaryLimits = computed(() => {
     maxEnd: next ? next.endIdx - 1 : (scenes.scenes.at(-1)?.endIdx ?? 0),
   };
 });
+const hasPrevScene = computed(() => selectedSceneIndex.value > 0);
+const hasNextScene = computed(() => selectedSceneIndex.value >= 0 && selectedSceneIndex.value < scenes.scenes.length - 1);
 const stepStage = computed(() => {
   if (scenes.isGeneratingAll) return 'generate' as const;
   return 'review' as const;
@@ -144,12 +146,13 @@ function onKeys(event: KeyboardEvent) {
             <div class="rounded-lg border-2 border-slate-900 bg-red-50 p-2 text-xs"><b>{{ scenes.sceneStats.error }}</b><br />Errors</div>
           </div>
           <div class="mt-3 flex flex-wrap items-center gap-3">
-            <button class="kaboom-btn disabled:opacity-60" :disabled="scenes.isGeneratingAll" @click="generateAll">
+            <button class="kaboom-btn disabled:opacity-60" :disabled="scenes.isGeneratingAll || !scenes.canGenerateImages" @click="generateAll">
               {{ scenes.isGeneratingAll ? 'Генерация…' : 'Сгенерировать иллюстрации' }}
             </button>
             <p class="text-xs text-slate-600">Для 100+ страниц: используйте page-size, compact list и batch approve текущей страницы.</p>
           </div>
           <p class="mt-2 text-xs text-slate-500">Каждая 7-я сцена падает в error для демонстрации retry.</p>
+          <p v-if="!scenes.canGenerateImages" class="mt-2 text-xs font-semibold text-rose-700">Сначала одобрьте границы всех сцен (не должно остаться pending), затем генерация станет доступна.</p>
         </div>
 
         <div v-if="workspaceMode === 'editor' && storyboardReady.length" class="comic-card bg-white p-3">
@@ -173,6 +176,8 @@ function onKeys(event: KeyboardEvent) {
             @approve="(id, approved) => scenes.approve(id, approved)"
             :min-start="boundaryLimits.minStart"
             :max-end="boundaryLimits.maxEnd"
+            :has-prev="hasPrevScene"
+            :has-next="hasNextScene"
             @set-range="(id, startIdx, endIdx) => scenes.setSceneRange(id, startIdx, endIdx)"
             @split="(id, splitAt) => scenes.splitScene(id, splitAt)"
             @merge="(id, direction) => scenes.mergeWithNeighbor(id, direction)"

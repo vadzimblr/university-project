@@ -56,6 +56,9 @@ export const useScenesStore = defineStore('scenes', () => {
     return filteredScenes.value.slice(start, start + pageSize.value);
   });
 
+
+  const canGenerateImages = computed(() => scenes.value.length > 0 && scenes.value.every((s) => s.status !== 'pending'));
+
   const sceneStats = computed(() => ({
     total: scenes.value.length,
     approved: scenes.value.filter((s) => s.status === 'approved').length,
@@ -229,6 +232,7 @@ export const useScenesStore = defineStore('scenes', () => {
   }
 
   async function generateApprovedWithConcurrency(maxParallel = 3) {
+    if (!canGenerateImages.value) return;
     const queue = scenes.value.filter((s) => s.status === 'approved' || s.status === 'error');
     if (!queue.length) return;
     isGeneratingAll.value = true;
@@ -258,6 +262,7 @@ export const useScenesStore = defineStore('scenes', () => {
     totalFiltered,
     totalPages,
     sceneStats,
+    canGenerateImages,
     segmentStory,
     setListPage,
     approve,

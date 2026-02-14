@@ -7,6 +7,8 @@ const props = defineProps<{
   scene: Scene;
   minStart: number;
   maxEnd: number;
+  hasPrev: boolean;
+  hasNext: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -20,6 +22,8 @@ const expanded = ref(false);
 const splitIdx = ref<number | null>(null);
 const startValue = ref(props.scene.startIdx);
 const endValue = ref(props.scene.endIdx);
+const moveHeadToPrev = ref(0);
+const moveTailToNext = ref(0);
 
 watch(
   () => props.scene,
@@ -27,6 +31,8 @@ watch(
     startValue.value = next.startIdx;
     endValue.value = next.endIdx;
     splitIdx.value = null;
+    moveHeadToPrev.value = 0;
+    moveTailToNext.value = 0;
   },
   { deep: true },
 );
@@ -35,21 +41,32 @@ const before = computed(() => storySentences.slice(Math.max(0, startValue.value 
 const inside = computed(() => storySentences.slice(startValue.value, endValue.value + 1));
 const after = computed(() => storySentences.slice(endValue.value + 1, endValue.value + 3));
 
-function commitRange() {
-  if (startValue.value >= endValue.value) {
-    endValue.value = startValue.value + 1;
-  }
-  emit('setRange', props.scene.id, startValue.value, endValue.value);
+const maxMovable = computed(() => Math.max(0, inside.value.length - 2));
+const maxHead = computed(() => (props.hasPrev ? maxMovable.value : 0));
+const maxTail = computed(() => (props.hasNext ? maxMovable.value : 0));
+
+const headOptions = computed(() => Array.from({ length: maxHead.value + 1 }, (_, i) => i));
+const tailOptions = computed(() => {
+  const allowedTail = Math.max(0, maxMovable.value - moveHeadToPrev.value);
+  return Array.from({ length: Math.min(maxTail.value, allowedTail) + 1 }, (_, i) => i);
+});
+
+watch(moveHeadToPrev, () => {
+  const allowedTail = Math.max(0, maxMovable.value - moveHeadToPrev.value);
+  if (moveTailToNext.value > allowedTail) moveTailToNext.value = allowedTail;
+});
+
+function commitRange(newStart: number, newEnd: number) {
+  if (newStart >= newEnd) return;
+  emit('setRange', props.scene.id, newStart, newEnd);
 }
 
-function onStartInput(value: number) {
-  startValue.value = Math.min(value, endValue.value - 1);
-  commitRange();
-}
-
-function onEndInput(value: number) {
-  endValue.value = Math.max(value, startValue.value + 1);
-  commitRange();
+function applyDistribution() {
+  const newStart = startValue.value + moveHeadToPrev.value;
+  const newEnd = endValue.value - moveTailToNext.value;
+  commitRange(newStart, newEnd);
+  moveHeadToPrev.value = 0;
+  moveTailToNext.value = 0;
 }
 
 function pickSplit(localIdx: number) {
@@ -62,9 +79,9 @@ function pickSplit(localIdx: number) {
     <div class="rounded-lg border-2 border-slate-900 bg-amber-50 p-3 text-sm">
       <p class="font-black">Как пользоваться</p>
       <ol class="mt-1 list-decimal pl-5 text-xs text-slate-700">
-        <li>Двигайте ползунок <b>Start</b> и <b>End</b> — предложение либо входит в сцену, либо нет.</li>
-        <li>Сцена обновляется сразу, соседние сцены подстраиваются автоматически.</li>
-        <li>Нажмите на предложение и используйте Split для деления сцены.</li>
+        <li>Выпадающими списками укажите, сколько начальных предложений уходит в предыдущую сцену.</li>
+        <li>Укажите, сколько конечных предложений уходит в следующую сцену.</li>
+        <li>Нажмите <b>Применить</b> — середину выдернуть нельзя, только края сцены.</li>
       </ol>
     </div>
 
@@ -79,14 +96,25 @@ function pickSplit(localIdx: number) {
     </div>
 
     <div class="rounded-xl border-2 border-slate-900 bg-white p-3">
-      <div class="mb-3">
-        <label class="mb-1 block text-sm font-semibold">Start: {{ startValue }}</label>
-        <input type="range" class="w-full accent-blue-600" :min="minStart" :max="Math.max(minStart, endValue - 1)" :value="startValue" @input="onStartInput(Number(($event.target as HTMLInputElement).value))" />
+      <p class="mb-2 text-sm font-semibold">Распределение предложений текущей сцены по соседям</p>
+      <div class="grid gap-2 md:grid-cols-[1fr_1fr_auto] md:items-end">
+        <label class="text-sm">
+          В начало в prev:
+          <select v-model.number="moveHeadToPrev" class="mt-1 w-full rounded border-2 border-slate-900 px-2 py-1" :disabled="!hasPrev">
+            <option v-for="n in headOptions" :key="`head-${n}`" :value="n">{{ n }}</option>
+          </select>
+        </label>
+
+        <label class="text-sm">
+          В конец в next:
+          <select v-model.number="moveTailToNext" class="mt-1 w-full rounded border-2 border-slate-900 px-2 py-1" :disabled="!hasNext">
+            <option v-for="n in tailOptions" :key="`tail-${n}`" :value="n">{{ n }}</option>
+          </select>
+        </label>
+
+        <button class="kaboom-btn" :disabled="moveHeadToPrev === 0 && moveTailToNext === 0" @click="applyDistribution">Применить</button>
       </div>
-      <div>
-        <label class="mb-1 block text-sm font-semibold">End: {{ endValue }}</label>
-        <input type="range" class="w-full accent-blue-600" :min="Math.min(maxEnd, startValue + 1)" :max="maxEnd" :value="endValue" @input="onEndInput(Number(($event.target as HTMLInputElement).value))" />
-      </div>
+      <p class="mt-2 text-xs text-slate-500">Ограничение: в сцене всегда остаётся минимум 2 предложения.</p>
     </div>
 
     <div class="speech-bubble">
