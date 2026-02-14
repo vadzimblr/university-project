@@ -4,7 +4,6 @@ import { useRoute, useRouter } from 'vue-router';
 import Topbar from '@/components/Topbar.vue';
 import SceneList from '@/components/SceneList.vue';
 import SceneEditor from '@/components/SceneEditor.vue';
-import IllustrationPanel from '@/components/IllustrationPanel.vue';
 import PromptModal from '@/components/PromptModal.vue';
 import ShortcutsModal from '@/components/ShortcutsModal.vue';
 import OnboardingBanner from '@/components/OnboardingBanner.vue';
@@ -64,11 +63,6 @@ const storyboardReady = computed(() =>
     .filter((item) => item.illustration),
 );
 
-function resetSegmentation() {
-  scenes.segmentStory(14);
-  ui.selectedSceneId = scenes.scenes[0]?.id ?? null;
-}
-
 async function generateAll() {
   await scenes.generateApprovedWithConcurrency(3);
 }
@@ -88,7 +82,6 @@ function onKeys(event: KeyboardEvent) {
     <Topbar
       :document-name="docs.activeDocument?.name ?? 'Unknown document'"
       :stage="stepStage"
-      @regenerate-segmentation="resetSegmentation"
       @open-settings="router.push('/upload')"
       @open-help="ui.showHelpModal = true"
       @toggle-drawer="ui.leftDrawerOpen = !ui.leftDrawerOpen"
@@ -102,7 +95,7 @@ function onKeys(event: KeyboardEvent) {
       <p class="text-xs text-slate-600">Reader mode — цельный просмотр как книга, Editor mode — точная правка.</p>
     </div>
 
-    <main class="mx-auto grid max-w-[1680px] grid-cols-1 gap-3 p-3 lg:grid-cols-[360px_1fr]">
+    <main class="mx-auto grid max-w-[1780px] grid-cols-1 gap-3 p-3 lg:grid-cols-[330px_1fr]">
       <div v-if="workspaceMode === 'editor'" :class="['lg:block', ui.leftDrawerOpen ? 'block' : 'hidden']">
         <SceneList
           :scenes="scenes.pagedScenes"
@@ -117,26 +110,19 @@ function onKeys(event: KeyboardEvent) {
           :page-size="scenes.pageSize"
           :compact-cards="scenes.compactCards"
           @choose="ui.selectedSceneId = $event; ui.leftDrawerOpen = false"
-          @approve="(id, approved) => scenes.approve(id, approved)"
-          @regenerate="scenes.generateSingle($event)"
           @update-search="scenes.search = $event; scenes.setListPage(1)"
           @update-status-filter="scenes.statusFilter = $event; scenes.setListPage(1)"
           @update-sort-by="scenes.sortBy = $event"
           @update-page="scenes.setListPage($event)"
           @update-page-size="scenes.pageSize = $event; scenes.setListPage(1)"
           @toggle-compact="scenes.compactCards = $event"
-          @approve-page="scenes.approvePaged($event)"
         />
       </div>
 
       <section class="space-y-3" :class="workspaceMode === 'reader' ? 'lg:col-span-2' : ''">
         <OnboardingBanner v-if="ui.showOnboardingBanner" @close="ui.dismissOnboarding()" />
 
-        <StorybookReader
-          v-if="workspaceMode === 'reader'"
-          :scenes="scenes.scenes"
-          :illustrations="scenes.illustrations"
-        />
+        <StorybookReader v-if="workspaceMode === 'reader'" :scenes="scenes.scenes" :illustrations="scenes.illustrations" />
 
         <div v-if="workspaceMode === 'editor'" class="comic-card bg-white p-4">
           <div class="grid gap-2 md:grid-cols-4">
@@ -149,7 +135,7 @@ function onKeys(event: KeyboardEvent) {
             <button class="kaboom-btn disabled:opacity-60" :disabled="scenes.isGeneratingAll || !scenes.canGenerateImages" @click="generateAll">
               {{ scenes.isGeneratingAll ? 'Генерация…' : 'Сгенерировать иллюстрации' }}
             </button>
-            <p class="text-xs text-slate-600">Для 100+ страниц: используйте page-size, compact list и batch approve текущей страницы.</p>
+            <p class="text-xs text-slate-600">Для 100+ страниц: используйте page-size и compact list.</p>
           </div>
           <p class="mt-2 text-xs text-slate-500">Каждая 7-я сцена падает в error для демонстрации retry.</p>
           <p v-if="!scenes.canGenerateImages" class="mt-2 text-xs font-semibold text-rose-700">Сначала одобрьте границы всех сцен (не должно остаться pending), затем генерация станет доступна.</p>
@@ -170,9 +156,10 @@ function onKeys(event: KeyboardEvent) {
           </div>
         </div>
 
-        <div v-if="workspaceMode === 'editor' && selectedScene" class="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
+        <div v-if="workspaceMode === 'editor' && selectedScene">
           <SceneEditor
             :scene="selectedScene"
+            :illustration="scenes.illustrations[selectedScene.id]"
             @approve="(id, approved) => scenes.approve(id, approved)"
             :min-start="boundaryLimits.minStart"
             :max-end="boundaryLimits.maxEnd"
@@ -181,13 +168,6 @@ function onKeys(event: KeyboardEvent) {
             @set-range="(id, startIdx, endIdx) => scenes.setSceneRange(id, startIdx, endIdx)"
             @split="(id, splitAt) => scenes.splitScene(id, splitAt)"
             @merge="(id, direction) => scenes.mergeWithNeighbor(id, direction)"
-          />
-          <IllustrationPanel
-            :scene="selectedScene"
-            :illustration="scenes.illustrations[selectedScene.id]"
-            @regenerate="scenes.generateSingle($event)"
-            @retry="scenes.generateSingle($event)"
-            @show-prompt="ui.promptSceneId = $event; ui.showPromptModal = true"
           />
         </div>
       </section>

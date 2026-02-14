@@ -5,7 +5,6 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
-  regenerateSegmentation: [];
   openSettings: [];
   openHelp: [];
   toggleDrawer: [];
@@ -35,7 +34,6 @@ const stageTitle: Record<'upload' | 'segmenting' | 'review' | 'generate', string
       </div>
 
       <div class="hidden items-center gap-2 md:flex">
-        <button class="kaboom-btn" @click="emit('regenerateSegmentation')">Пересегментировать</button>
         <button class="rounded-lg border-2 border-slate-900 bg-white px-3 py-1.5 text-sm" @click="emit('openHelp')">Shortcuts</button>
         <button class="rounded-lg border-2 border-slate-900 bg-slate-900 px-3 py-1.5 text-sm text-white" @click="emit('openSettings')">Настройки</button>
       </div>

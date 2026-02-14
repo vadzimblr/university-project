@@ -73,6 +73,10 @@ body {
   @apply shadow-[5px_5px_0_#111827] transition duration-200 hover:-translate-y-0.5;
 }
 
+.storybook-spread {
+  @apply rounded-[28px] border-2 border-slate-900 bg-gradient-to-b from-white to-amber-50 p-5 shadow-[6px_6px_0_#111827];
+}
+
 .reader-cinematic {
   position: relative;
 }

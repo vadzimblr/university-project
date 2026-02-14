@@ -18,15 +18,12 @@ defineProps<{
 
 const emit = defineEmits<{
   choose: [id: string];
-  approve: [id: string, approved: boolean];
-  regenerate: [id: string];
   updateSearch: [value: string];
   updateStatusFilter: [value: 'all' | SceneStatus];
   updateSortBy: [value: 'index' | 'status'];
   updatePage: [value: number];
   updatePageSize: [value: number];
   toggleCompact: [value: boolean];
-  approvePage: [approved: boolean];
 }>();
 </script>
 
@@ -79,11 +76,6 @@ const emit = defineEmits<{
           <input type="checkbox" :checked="compactCards" @change="emit('toggleCompact', ($event.target as HTMLInputElement).checked)" /> compact
         </label>
       </div>
-
-      <div class="flex flex-wrap gap-2">
-        <button class="rounded border-2 border-slate-900 bg-white px-2 py-1 text-xs font-semibold" @click="emit('approvePage', true)">Approve page</button>
-        <button class="rounded border-2 border-slate-900 bg-white px-2 py-1 text-xs font-semibold" @click="emit('approvePage', false)">Unapprove page</button>
-      </div>
     </div>
 
     <div class="mb-2 flex items-center justify-between text-xs font-semibold text-slate-700">
@@ -91,7 +83,7 @@ const emit = defineEmits<{
       <span>page {{ listPage }} / {{ totalPages }}</span>
     </div>
 
-    <div class="space-y-2 overflow-y-auto pb-4" style="max-height: calc(100vh - 340px)">
+    <div class="space-y-2 overflow-y-auto pb-4" style="max-height: calc(100vh - 320px)">
       <SceneCard
         v-for="scene in scenes"
         :key="scene.id"
@@ -100,8 +92,6 @@ const emit = defineEmits<{
         :selected="selectedSceneId === scene.id"
         :compact="compactCards"
         @edit="emit('choose', $event)"
-        @approve="(id, approved) => emit('approve', id, approved)"
-        @regenerate="emit('regenerate', $event)"
       />
     </div>
 
