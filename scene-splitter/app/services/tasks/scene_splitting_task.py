@@ -3,6 +3,7 @@ from app.services.scene_splitter import SceneSplitterService
 from app.repositories.processing_job_repository import ProcessingJobRepository
 from app.utils.database import get_db_session
 from sqlalchemy.orm import Session
+from app.models.enums import ProcessingStatus, ProcessingStep
 
 
 @celery_app.task(name="scene_splitting_task", bind=True)
@@ -11,7 +12,7 @@ def scene_splitting_task(self, job_id: str, extracted_text: str):
     job_repo = ProcessingJobRepository(session)
     
     try:
-        job_repo.update_status(job_id, "splitting", "scene_splitting")
+        job_repo.update_status(job_id, ProcessingStatus.SPLITTING, ProcessingStep.SCENE_SPLITTING)
         
         splitter = SceneSplitterService()
         scenes, valleys, smoothed = splitter.analyze_scenes(extracted_text)
@@ -41,7 +42,7 @@ def scene_splitting_task(self, job_id: str, extracted_text: str):
         }
         
     except Exception as e:
-        job_repo.update_status(job_id, "failed", error_message=str(e))
+        job_repo.update_status(job_id, ProcessingStatus.FAILED, error_message=str(e))
         
         raise self.retry(
             exc=e,

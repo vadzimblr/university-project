@@ -1,13 +1,19 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from sqlalchemy.orm import Session
-from typing import List
-import uuid
 
 from app.services.tasks.extract_text_task import extract_text_task
-from app.models import Document, ProcessingJob, Scene
+from app.models import Scene
 from app.repositories.processing_job_repository import ProcessingJobRepository
 from app.repositories.document_repository import DocumentRepository
+from app.models.enums import ProcessingStatus
 from app.utils.database import get_db
+from app.services.job_approval_service import (
+    JobApprovalService,
+    JobNotFoundError,
+    JobAlreadyApprovedError,
+    JobNotReadyError,
+    ScenesMissingError,
+)
 
 router = APIRouter()
 
@@ -61,10 +67,22 @@ async def get_job_status(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
+    def _normalize_status(raw):
+        if hasattr(raw, "value"):
+            return raw.value
+        if isinstance(raw, str) and raw.startswith("ProcessingStatus."):
+            name = raw.split(".", 1)[1]
+            if name in ProcessingStatus.__members__:
+                return ProcessingStatus[name].value
+        return raw
+
+    def _normalize_step(raw):
+        return raw.value if hasattr(raw, "value") else raw
+    
     return {
         "job_id": job_id,
-        "status": job.status,
-        "current_step": job.current_step,
+        "status": _normalize_status(job.status),
+        "current_step": _normalize_step(job.current_step),
         "error_message": job.error_message,
         "started_at": job.started_at,
         "completed_at": job.completed_at,
@@ -83,8 +101,26 @@ async def get_job_scenes(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    if job.status != "completed":
-        raise HTTPException(status_code=400, detail="Processing not completed yet")
+    def _normalize_status_value(raw):
+        if hasattr(raw, "value"):
+            return raw.value
+        if isinstance(raw, str) and raw.startswith("ProcessingStatus."):
+            name = raw.split(".", 1)[1]
+            if name in ProcessingStatus.__members__:
+                return ProcessingStatus[name].value
+        return raw
+
+    status_value = _normalize_status_value(job.status)
+    allowed_statuses = {
+        ProcessingStatus.COMPLETED.value,
+        ProcessingStatus.APPROVED.value,
+        ProcessingStatus.READY_FOR_REVIEW.value,
+        "completed",
+        "approved",
+        "ready-for-review",
+    }
+    if status_value not in allowed_statuses:
+        raise HTTPException(status_code=400, detail="Scenes are not ready yet")
     
     scenes = session.query(Scene).filter(
         Scene.processing_job_id == job_id
@@ -105,3 +141,23 @@ async def get_job_scenes(
             for scene in scenes
         ]
     }
+@router.post("/jobs/{job_id}/approve")
+async def approve_job(
+    job_id: str,
+    session: Session = Depends(get_db)
+):
+    service = JobApprovalService(session)
+    try:
+        result = service.approve(job_id)
+        return {
+            **result,
+            "message": "Scenes approved and events queued"
+        }
+    except JobNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except JobAlreadyApprovedError as e:
+        return {"job_id": job_id, "status": ProcessingStatus.APPROVED, "message": str(e)}
+    except JobNotReadyError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ScenesMissingError as e:
+        raise HTTPException(status_code=400, detail=str(e))

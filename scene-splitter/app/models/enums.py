@@ -4,6 +4,8 @@ class ProcessingStatus(str, Enum):
     PENDING = "pending"
     EXTRACTING = "extracting"
     SPLITTING = "splitting"
+    READY_FOR_REVIEW = "ready-for-review"
+    APPROVED = "approved"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
