@@ -1,57 +1,98 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onMounted, ref } from 'vue';
 import { useDocumentsStore } from '@/stores/documentsStore';
-import { useScenesStore } from '@/stores/scenesStore';
-import { useUiStore } from '@/stores/uiStore';
+import { useRouter } from 'vue-router';
+import { statusLabel } from '@/utils/statusLabel';
 
-const router = useRouter();
 const documentsStore = useDocumentsStore();
-const scenesStore = useScenesStore();
-const uiStore = useUiStore();
+const router = useRouter();
 
 const dragOver = ref(false);
-let timer: number | null = null;
+const fileInput = ref<HTMLInputElement | null>(null);
+const selectedFile = ref<File | null>(null);
+const startPage = ref(1);
+const endPage = ref(999);
+const isUploading = ref(false);
+const errorMsg = ref<string | null>(null);
 
-const isProcessing = computed(() => uiStore.processingStage !== 'idle' && uiStore.processingStage !== 'done');
+const statusFilter = ref<'all' | 'pending' | 'in-progress' | 'ready' | 'approved' | 'failed'>('all');
+const sortBy = ref<'date-desc' | 'date-asc' | 'name-asc' | 'name-desc'>('date-desc');
+const hasDocs = computed(() => documentsStore.documents.length > 0);
+const documentsView = computed(() => {
+  const normalized = documentsStore.documents.map((d) => {
+    const latest = d.processingJobs[0];
+    const statusRaw = latest?.status?.toLowerCase() ?? '';
+    const statusBucket =
+      statusRaw === 'approved'
+        ? 'approved'
+        : statusRaw === 'failed'
+          ? 'failed'
+          : ['pending'].includes(statusRaw)
+            ? 'pending'
+            : statusRaw.includes('ready')
+              ? 'ready'
+              : statusRaw
+                ? 'in-progress'
+                : 'pending';
+    return {
+      ...d,
+      statusRaw,
+      statusBucket,
+      statusLabel: latest ? statusLabel(latest.status) : 'Нет задач',
+      uploadedDate: d.uploadedAt ? new Date(d.uploadedAt) : null,
+      uploaded: d.uploadedAt ? new Date(d.uploadedAt).toLocaleString() : '—',
+    };
+  });
 
-function selectDocument(name: string) {
-  documentsStore.addDocument(name);
-  startMockFlow();
-}
+  const filtered =
+    statusFilter.value === 'all'
+      ? normalized
+      : normalized.filter((d) => d.statusBucket === statusFilter.value);
 
-function openRecent(docId: string) {
-  documentsStore.setActiveDocument(docId);
-  startMockFlow();
-}
+  const sorted = [...filtered].sort((a, b) => {
+    if (sortBy.value === 'name-asc') return a.filename.localeCompare(b.filename);
+    if (sortBy.value === 'name-desc') return b.filename.localeCompare(a.filename);
+    const ta = a.uploadedDate?.getTime() ?? 0;
+    const tb = b.uploadedDate?.getTime() ?? 0;
+    return sortBy.value === 'date-asc' ? ta - tb : tb - ta;
+  });
 
-function startMockFlow() {
-  uiStore.processingStage = 'upload';
-  uiStore.uploadProgress = 0;
-  uiStore.segmentationProgress = 0;
-
-  timer = window.setInterval(() => {
-    if (uiStore.processingStage === 'upload') {
-      uiStore.uploadProgress = Math.min(100, uiStore.uploadProgress + 8);
-      if (uiStore.uploadProgress >= 100) uiStore.processingStage = 'segmenting';
-      return;
-    }
-
-    if (uiStore.processingStage === 'segmenting') {
-      uiStore.segmentationProgress = Math.min(100, uiStore.segmentationProgress + 10);
-      if (uiStore.segmentationProgress >= 100) {
-        uiStore.processingStage = 'done';
-        scenesStore.segmentStory();
-        uiStore.selectedSceneId = scenesStore.scenes[0]?.id ?? null;
-        if (documentsStore.activeDocumentId) router.push(`/doc/${documentsStore.activeDocumentId}`);
-      }
-    }
-  }, 260);
-}
-
-onUnmounted(() => {
-  if (timer) window.clearInterval(timer);
+  return sorted;
 });
+
+onMounted(() => {
+  documentsStore.loadDocuments().catch((e) => {
+    errorMsg.value = e?.message ?? 'Не удалось загрузить документы';
+  });
+});
+
+function onFileChange(event: Event) {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  selectedFile.value = file ?? null;
+}
+
+async function submitUpload() {
+  if (!selectedFile.value) {
+    errorMsg.value = 'Выберите PDF файл';
+    return;
+  }
+  errorMsg.value = null;
+  isUploading.value = true;
+  try {
+    const resp = await documentsStore.upload(selectedFile.value, startPage.value, endPage.value);
+    router.push(`/doc/${resp.document_id}`);
+  } catch (e: any) {
+    errorMsg.value = e?.message ?? 'Ошибка загрузки';
+  } finally {
+    isUploading.value = false;
+  }
+}
+
+function openDocument(docId: string) {
+  documentsStore.setActiveDocument(docId);
+  router.push(`/doc/${docId}`);
+}
 </script>
 
 <template>
@@ -67,40 +108,79 @@ onUnmounted(() => {
       :class="dragOver ? 'ring-2 ring-emerald-200' : ''"
       @dragover.prevent="dragOver = true"
       @dragleave.prevent="dragOver = false"
-      @drop.prevent="dragOver = false; selectDocument('Новый рассказ.pdf')"
+      @drop.prevent="dragOver = false"
     >
       <p class="comic-title text-2xl font-semibold">Загрузить PDF</p>
-      <p class="mt-2 text-sm text-slate-600">Перетащите файл в панель или выберите вручную.</p>
-      <button class="kaboom-btn mt-4" @click="selectDocument('Новый рассказ.pdf')">Выбрать файл</button>
+      <p class="mt-2 text-sm text-slate-600">Укажите диапазон страниц для извлечения и загрузите файл.</p>
+
+      <div class="mt-4 flex flex-col items-center gap-3">
+        <input ref="fileInput" type="file" accept="application/pdf" class="hidden" @change="onFileChange" />
+        <button class="kaboom-btn" @click="fileInput?.click()">Выбрать файл</button>
+        <p class="text-sm text-slate-500">{{ selectedFile?.name ?? 'Файл не выбран' }}</p>
+
+        <div class="flex flex-wrap items-center justify-center gap-3 text-sm">
+          <label class="flex items-center gap-2">
+            <span>Старт:</span>
+            <input v-model.number="startPage" type="number" min="1" class="w-20 rounded border border-slate-200 px-2 py-1" />
+          </label>
+          <label class="flex items-center gap-2">
+            <span>Конец:</span>
+            <input v-model.number="endPage" type="number" min="1" class="w-20 rounded border border-slate-200 px-2 py-1" />
+          </label>
+        </div>
+
+        <button class="kaboom-btn mt-2" :disabled="isUploading" @click="submitUpload">
+          {{ isUploading ? 'Загружаем...' : 'Загрузить' }}
+        </button>
+        <p v-if="errorMsg" class="text-sm text-red-600">{{ errorMsg }}</p>
+      </div>
     </section>
 
     <section class="comic-card bg-white p-5">
-      <h2 class="comic-title mb-3 text-lg font-semibold">Недавние документы</h2>
-      <ul class="space-y-2">
-        <li v-for="doc in documentsStore.recentDocuments" :key="doc.id" class="rounded-xl border border-slate-200 bg-slate-50 p-3">
-          <div class="flex items-center justify-between gap-3">
+      <div class="flex items-center justify-between">
+        <h2 class="comic-title mb-3 text-lg font-semibold">Документы</h2>
+        <button class="rounded-full border border-slate-200 px-3 py-1 text-sm" @click="documentsStore.loadDocuments()">Обновить</button>
+      </div>
+
+      <div class="mb-3 flex flex-wrap items-center gap-3 text-sm">
+        <label class="flex items-center gap-2">
+          <span>Статус:</span>
+          <select v-model="statusFilter" class="rounded border border-slate-200 px-2 py-1">
+            <option value="all">Все</option>
+            <option value="pending">В очереди</option>
+            <option value="in-progress">В процессе</option>
+            <option value="ready">Готово к ревью</option>
+            <option value="approved">Одобрено</option>
+            <option value="failed">Ошибка</option>
+          </select>
+        </label>
+        <label class="flex items-center gap-2">
+          <span>Сортировка:</span>
+          <select v-model="sortBy" class="rounded border border-slate-200 px-2 py-1">
+            <option value="date-desc">Новые сверху</option>
+            <option value="date-asc">Старые сверху</option>
+            <option value="name-asc">Имя A→Z</option>
+            <option value="name-desc">Имя Z→A</option>
+          </select>
+        </label>
+      </div>
+
+      <div v-if="documentsStore.loading" class="text-sm text-slate-500">Загружаем...</div>
+      <div v-else-if="documentsStore.error" class="text-sm text-red-600">{{ documentsStore.error }}</div>
+      <div v-else-if="!hasDocs" class="text-sm text-slate-500">Документов пока нет</div>
+
+      <ul v-else class="space-y-2">
+        <li v-for="doc in documentsView" :key="doc.id" class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
-              <p class="font-semibold">{{ doc.name }}</p>
-              <p class="text-xs text-slate-500">{{ doc.pagesCount }} pages · {{ new Date(doc.uploadedAt).toLocaleString() }}</p>
+              <p class="font-semibold">{{ doc.filename }}</p>
+              <p class="text-xs text-slate-500">Загружен: {{ doc.uploaded }}</p>
+              <p class="text-xs text-slate-500">Статус: {{ doc.statusLabel }}</p>
             </div>
-            <button class="kaboom-btn" @click="openRecent(doc.id)">Открыть</button>
+            <button class="kaboom-btn" @click="openDocument(doc.id)">Открыть</button>
           </div>
         </li>
       </ul>
-    </section>
-
-    <section v-if="isProcessing" class="comic-card bg-white p-5">
-      <h3 class="comic-title text-base font-semibold">Подготовка материалов</h3>
-      <div class="mt-3 space-y-3">
-        <div>
-          <p class="mb-1 text-sm font-medium">Upload: {{ uiStore.uploadProgress }}%</p>
-          <div class="h-2.5 rounded-full border border-slate-200 bg-slate-100"><div class="h-full rounded-full bg-emerald-500" :style="{ width: `${uiStore.uploadProgress}%` }" /></div>
-        </div>
-        <div>
-          <p class="mb-1 text-sm font-medium">Segmenting: {{ uiStore.segmentationProgress }}%</p>
-          <div class="h-2.5 rounded-full border border-slate-200 bg-slate-100"><div class="h-full rounded-full bg-slate-800" :style="{ width: `${uiStore.segmentationProgress}%` }" /></div>
-        </div>
-      </div>
     </section>
   </main>
 </template>

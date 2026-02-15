@@ -56,6 +56,7 @@ async def list_documents(session: Session = Depends(get_db)):
                 filename=doc.filename,
                 file_size=doc.file_size,
                 mime_type=doc.mime_type,
+                created_at=doc.created_at.isoformat() if doc.created_at else None,
                 processing_jobs=[
                     ProcessingJobRef(
                         id=job.id,
