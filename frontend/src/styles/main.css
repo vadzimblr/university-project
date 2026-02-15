@@ -29,6 +29,8 @@ body {
     radial-gradient(circle at 80% 10%, rgba(15, 61, 62, 0.06) 0, transparent 32%),
     linear-gradient(180deg, #f8f7f2 0%, #eef1ec 50%, #f6f7f4 100%);
   color: var(--text);
+  font-size: 16.5px;
+  line-height: 1.65;
 }
 
 .comic-card {
@@ -89,8 +91,8 @@ body {
   border: 1px solid transparent;
   background: var(--accent);
   color: #fff;
-  padding: 8px 14px;
-  font-size: 14px;
+  padding: 10px 16px;
+  font-size: 15px;
   font-weight: 600;
   transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
   box-shadow: 0 10px 20px rgba(47, 110, 99, 0.2);
