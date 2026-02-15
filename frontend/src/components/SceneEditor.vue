@@ -18,7 +18,7 @@ const emit = defineEmits<{
   merge: [sceneId: string, direction: 'prev' | 'next'];
 }>();
 
-const expanded = ref(false);
+const expanded = ref(true);
 const splitIdx = ref<number | null>(null);
 const startValue = ref(props.scene.startIdx);
 const endValue = ref(props.scene.endIdx);
@@ -202,7 +202,6 @@ function isSelected(idx: number) {
         <h2 class="comic-title text-2xl font-semibold">{{ scene.title }}</h2>
         <p class="text-sm text-slate-600">Границы сцены: {{ startValue }}-{{ endValue }}</p>
       </div>
-      <span class="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-semibold">{{ scene.status }}</span>
     </div>
 
     <div class="panel-frame">
@@ -271,9 +270,9 @@ function isSelected(idx: number) {
     </div>
 
     <div class="flex flex-wrap gap-2">
-      <button class="kaboom-btn" :disabled="splitIdx === null" @click="splitIdx !== null && emit('split', scene.id, splitIdx)">Split по выделенному</button>
-      <button class="rounded border border-slate-200 bg-white px-2 py-1 text-sm font-semibold" @click="emit('merge', scene.id, 'prev')">Merge prev</button>
-      <button class="rounded border border-slate-200 bg-white px-2 py-1 text-sm font-semibold" @click="emit('merge', scene.id, 'next')">Merge next</button>
+      <button class="kaboom-btn" :disabled="splitIdx === null" @click="splitIdx !== null && emit('split', scene.id, splitIdx)">Разделить по выделению</button>
+      <button class="rounded border border-slate-200 bg-white px-2 py-1 text-sm font-semibold" @click="emit('merge', scene.id, 'prev')">Слить с предыдущей</button>
+      <button class="rounded border border-slate-200 bg-white px-2 py-1 text-sm font-semibold" @click="emit('merge', scene.id, 'next')">Слить со следующей</button>
     </div>
   </section>
 </template>

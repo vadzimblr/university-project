@@ -63,6 +63,27 @@ const storyboardReady = computed(() =>
     .filter((item) => item.illustration),
 );
 
+const showApproveConfirm = ref(false);
+const skipApproveConfirm = ref(localStorage.getItem('skipApproveConfirm') === '1');
+
+function requestApprove() {
+  if (skipApproveConfirm.value) {
+    scenes.approveSegmentation();
+    return;
+  }
+  showApproveConfirm.value = true;
+}
+
+function confirmApprove() {
+  scenes.approveSegmentation();
+  showApproveConfirm.value = false;
+  if (skipApproveConfirm.value) localStorage.setItem('skipApproveConfirm', '1');
+}
+
+function cancelApprove() {
+  showApproveConfirm.value = false;
+}
+
 async function generateAll() {
   await scenes.generateApprovedWithConcurrency(3);
 }
@@ -79,7 +100,7 @@ function onKeys(event: KeyboardEvent) {
 <template>
   <div class="min-h-screen bg-transparent page-fade">
     <Topbar
-      :document-name="docs.activeDocument?.name ?? 'Unknown document'"
+      :document-name="docs.activeDocument?.name ?? docs.activeDocument?.filename ?? 'Документ'"
       :stage="stepStage"
       @open-settings="router.push('/upload')"
       @open-help="ui.showHelpModal = true"
@@ -88,10 +109,10 @@ function onKeys(event: KeyboardEvent) {
 
     <div class="mx-auto mt-3 flex w-full max-w-[1680px] flex-wrap items-center justify-between gap-2 px-3">
       <div class="rounded-full border border-slate-200 bg-white/90 p-1 text-sm font-semibold shadow-sm">
-        <button class="rounded-full px-4 py-1.5" :class="workspaceMode === 'editor' ? 'bg-slate-900 text-white' : 'text-slate-600'" @click="workspaceMode = 'editor'">Editor mode</button>
-        <button class="rounded-full px-4 py-1.5" :class="workspaceMode === 'reader' ? 'bg-slate-900 text-white' : 'text-slate-600'" @click="workspaceMode = 'reader'">Storybook mode</button>
+        <button class="rounded-full px-4 py-1.5" :class="workspaceMode === 'editor' ? 'bg-slate-900 text-white' : 'text-slate-600'" @click="workspaceMode = 'editor'">Режим редактора</button>
+        <button class="rounded-full px-4 py-1.5" :class="workspaceMode === 'reader' ? 'bg-slate-900 text-white' : 'text-slate-600'" @click="workspaceMode = 'reader'">Режим чтения</button>
       </div>
-      <p class="text-xs text-slate-600">Reader mode — цельный просмотр как книга, Editor mode — точная правка.</p>
+      <p class="text-xs text-slate-600">Режим чтения — целостный просмотр, редактор — для правки.</p>
     </div>
 
     <main class="mx-auto grid max-w-[1780px] grid-cols-1 gap-3 p-3 lg:grid-cols-[330px_1fr]">
@@ -125,22 +146,20 @@ function onKeys(event: KeyboardEvent) {
 
         <div v-if="workspaceMode === 'editor'" class="comic-card bg-white p-5">
           <div class="grid gap-2 md:grid-cols-4">
-            <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs"><b>{{ scenes.sceneStats.total }}</b><br />Total scenes</div>
-            <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-xs"><b>{{ scenes.sceneStats.approved }}</b><br />Approved</div>
-            <div class="rounded-lg border border-blue-200 bg-blue-50 p-2 text-xs"><b>{{ scenes.sceneStats.ready }}</b><br />Ready panels</div>
-            <div class="rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs"><b>{{ scenes.sceneStats.error }}</b><br />Errors</div>
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs"><b>{{ scenes.sceneStats.total }}</b><br />Всего сцен</div>
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-xs"><b>{{ scenes.sceneStats.approved }}</b><br />Одобрено</div>
+            <div class="rounded-lg border border-blue-200 bg-blue-50 p-2 text-xs"><b>{{ scenes.sceneStats.ready }}</b><br />Готово</div>
+            <div class="rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs"><b>{{ scenes.sceneStats.error }}</b><br />Ошибки</div>
           </div>
           <div class="mt-3 flex flex-wrap items-center gap-3">
-            <button class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold" :class="scenes.segmentationApproved ? 'bg-emerald-100 text-emerald-800' : ''" @click="scenes.approveSegmentation()">
+            <button class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold" :class="scenes.segmentationApproved ? 'bg-emerald-100 text-emerald-800' : ''" @click="requestApprove">
               {{ scenes.segmentationApproved ? 'Нарезка подтверждена' : 'Подтвердить текущую нарезку сцен' }}
             </button>
             <button class="kaboom-btn disabled:opacity-60" :disabled="scenes.isGeneratingAll || !scenes.canGenerateImages" @click="generateAll">
               {{ scenes.isGeneratingAll ? 'Генерация…' : 'Сгенерировать иллюстрации' }}
             </button>
-            <p class="text-xs text-slate-600">Для 100+ страниц: используйте page-size и compact list.</p>
           </div>
-          <p class="mt-2 text-xs text-slate-500">Каждая 7-я сцена падает в error для демонстрации retry.</p>
-          <p v-if="!scenes.canGenerateImages" class="mt-2 text-xs font-semibold text-rose-700">Сначала одобрьте границы всех сцен (не должно остаться pending), затем генерация станет доступна.</p>
+          <p v-if="!scenes.canGenerateImages" class="mt-2 text-xs font-semibold text-rose-700">Сначала одобрите границы всех сцен (не должно остаться pending), затем генерация станет доступна.</p>
         </div>
 
         <div v-if="workspaceMode === 'editor' && storyboardReady.length" class="comic-card bg-white p-3">
@@ -176,5 +195,27 @@ function onKeys(event: KeyboardEvent) {
 
     <PromptModal :open="ui.showPromptModal" :prompt="promptText" @close="ui.showPromptModal = false" />
     <ShortcutsModal :open="ui.showHelpModal" @close="ui.showHelpModal = false" />
+
+    <div
+      v-if="showApproveConfirm"
+      class="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 px-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+        <h3 class="comic-title text-lg font-semibold">Подтвердить нарезку?</h3>
+        <p class="mt-2 text-sm text-slate-700">
+          После подтверждения границы сцен нельзя будет изменить, а генерация иллюстраций запустится автоматически. Убедитесь, что сцены расставлены верно.
+        </p>
+        <label class="mt-3 flex items-center gap-2 text-sm text-slate-600">
+          <input v-model="skipApproveConfirm" type="checkbox" class="rounded border-slate-300" />
+          Не показывать снова
+        </label>
+        <div class="mt-4 flex justify-end gap-2">
+          <button class="rounded border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold" @click="cancelApprove">Отмена</button>
+          <button class="kaboom-btn px-4 py-2 text-sm" @click="confirmApprove">Подтвердить</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

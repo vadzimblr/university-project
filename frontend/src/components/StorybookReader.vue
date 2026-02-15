@@ -60,8 +60,8 @@ function jumpTo(index: number) {
     <div class="pointer-events-none absolute inset-0 opacity-30 halftone"></div>
 
     <div class="relative z-10 mb-4 rounded-2xl border border-slate-200 bg-white/90 p-4">
-      <h2 class="comic-title text-3xl font-semibold">Storybook Reader</h2>
-      <p class="mt-1 text-sm text-slate-600">Плавный режим чтения: иллюстрация встроена в историю, текст идёт как единый разворот.</p>
+      <h2 class="comic-title text-3xl font-semibold">Режим чтения</h2>
+      <p class="mt-1 text-sm text-slate-600">Иллюстрация встроена в текст, показываем историю целиком.</p>
 
       <div class="mt-4 grid gap-2 md:grid-cols-3">
         <label class="reader-chip">
