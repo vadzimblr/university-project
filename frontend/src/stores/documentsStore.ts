@@ -1,38 +1,62 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
-import type { Document } from '@/types/models';
-import { mockDocuments } from '@/mock/mockDocuments';
+import type { DocumentSummary } from '@/types/models';
+import { fetchDocuments, uploadDocument } from '@/api/sceneSplitter';
 
 export const useDocumentsStore = defineStore('documents', () => {
-  const recentDocuments = ref<Document[]>(mockDocuments);
+  const documents = ref<DocumentSummary[]>([]);
   const activeDocumentId = ref<string | null>(null);
+  const loading = ref(false);
+  const error = ref<string | null>(null);
 
   const activeDocument = computed(() =>
-    recentDocuments.value.find((doc) => doc.id === activeDocumentId.value) ?? null,
+    documents.value.find((doc) => doc.id === activeDocumentId.value) ?? null,
   );
 
   function setActiveDocument(id: string) {
     activeDocumentId.value = id;
   }
 
-  function addDocument(name: string) {
-    const newDoc: Document = {
-      id: `doc-${Math.random().toString(36).slice(2, 10)}`,
-      name,
-      pagesCount: Math.floor(14 + Math.random() * 22),
-      uploadedAt: new Date().toISOString(),
-    };
+  async function loadDocuments() {
+    loading.value = true;
+    error.value = null;
+    try {
+      documents.value = await fetchDocuments();
+    } catch (e: any) {
+      error.value = e?.message ?? 'Не удалось загрузить документы';
+      throw e;
+    } finally {
+      loading.value = false;
+    }
+  }
 
-    recentDocuments.value.unshift(newDoc);
-    activeDocumentId.value = newDoc.id;
-    return newDoc;
+  async function upload(file: File, startPage: number, endPage: number) {
+    error.value = null;
+    const response = await uploadDocument(file, startPage, endPage);
+    const existing = documents.value.find((d) => d.id === response.document_id);
+    if (!existing) {
+      documents.value.unshift({
+        id: response.document_id,
+        filename: file.name,
+        name: file.name,
+        processingJobs: [{ id: response.job_id, status: response.status }],
+        uploadedAt: new Date().toISOString(),
+      });
+    } else {
+      existing.processingJobs.unshift({ id: response.job_id, status: response.status });
+    }
+    activeDocumentId.value = response.document_id;
+    return response;
   }
 
   return {
-    recentDocuments,
+    documents,
     activeDocumentId,
     activeDocument,
-    addDocument,
+    loading,
+    error,
+    loadDocuments,
+    upload,
     setActiveDocument,
   };
 });

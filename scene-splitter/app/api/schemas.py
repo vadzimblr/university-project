@@ -42,6 +42,7 @@ class DocumentItem(BaseModel):
     filename: str
     file_size: Optional[int]
     mime_type: Optional[str]
+    created_at: Optional[str]
     processing_jobs: List[ProcessingJobRef]
 
 

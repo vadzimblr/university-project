@@ -1,10 +1,20 @@
 export type SceneStatus = 'pending' | 'approved' | 'generating' | 'ready' | 'error';
 
-export interface Document {
+export interface ProcessingJobRef {
   id: string;
-  name: string;
-  pagesCount: number;
-  uploadedAt: string;
+  status: string;
+  currentStep?: string | null;
+}
+
+export interface DocumentSummary {
+  id: string;
+  filename: string;
+  name?: string;
+  fileSize?: number | null;
+  mimeType?: string | null;
+  uploadedAt?: string | null;
+  processingJobs: ProcessingJobRef[];
+  pagesCount?: number | null;
 }
 
 export interface Scene {
