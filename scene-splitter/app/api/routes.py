@@ -19,6 +19,13 @@ from app.services.scene_update_service import (
     JobNotEditableError,
     SceneNotFoundError,
 )
+from app.services.scene_merge_service import (
+    SceneMergeService,
+    SceneMergeValidationError,
+    JobNotEditableError as SceneMergeJobNotEditableError,
+    JobNotFoundError as SceneMergeJobNotFoundError,
+    SceneNotFoundError as SceneMergeSceneNotFoundError,
+)
 from app.services.scene_query_service import (
     SceneQueryService,
     SceneNotFoundError as SceneQueryNotFound,
@@ -28,6 +35,8 @@ from app.api.schemas import (
     ScenePatchRequest,
     ScenePatchResponse,
     SceneResponse,
+    SceneMergeRequest,
+    SceneMergeResponse,
     DocumentsResponse,
     DocumentItem,
     ProcessingJobRef,
@@ -240,6 +249,44 @@ async def patch_job_scenes(
             )
             for scene in updated_scenes
         ]
+    )
+
+
+@router.post("/jobs/{job_id}/scenes/merge", response_model=SceneMergeResponse)
+async def merge_job_scenes(
+    job_id: str,
+    payload: SceneMergeRequest,
+    session: Session = Depends(get_db)
+):
+    service = SceneMergeService(session)
+
+    try:
+        scenes = service.merge_scenes(job_id, payload.scene_numbers)
+    except SceneMergeValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except SceneMergeJobNotEditableError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except SceneMergeJobNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except SceneMergeSceneNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    return SceneMergeResponse(
+        job_id=job_id,
+        scenes=[
+            SceneResponse(
+                scene_id=scene.id,
+                scene_number=scene.scene_number,
+                scene_text=scene.scene_text,
+                sentence_count=scene.sentence_count,
+                word_count=scene.word_count,
+                char_count=scene.char_count,
+                start_sentence_idx=scene.start_sentence_idx,
+                end_sentence_idx=scene.end_sentence_idx,
+                boundary_confidence=scene.boundary_confidence,
+            )
+            for scene in scenes
+        ],
     )
 
 @router.post("/jobs/{job_id}/approve")
