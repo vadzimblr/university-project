@@ -9,12 +9,11 @@ const props = defineProps<{
 
 const page = ref(1);
 const scenesPerPage = ref(1);
-const showOnlyReady = ref(false);
 const fontScale = ref<'md' | 'lg' | 'xl'>('lg');
 
 const readerScenes = computed(() => {
   const base = [...props.scenes].sort((a, b) => a.index - b.index);
-  return showOnlyReady.value ? base.filter((s) => s.status === 'ready') : base;
+  return base;
 });
 
 const totalPages = computed(() => Math.max(1, Math.ceil(readerScenes.value.length / scenesPerPage.value)));
@@ -24,13 +23,32 @@ const paged = computed(() => {
   return readerScenes.value.slice(start, start + scenesPerPage.value);
 });
 
+const pageItems = computed(() => {
+  const total = totalPages.value;
+  const current = page.value;
+  if (total <= 9) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+
+  const items: Array<number | 'gap'> = [1];
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+
+  if (start > 2) items.push('gap');
+  for (let n = start; n <= end; n += 1) items.push(n);
+  if (end < total - 1) items.push('gap');
+  items.push(total);
+
+  return items;
+});
+
 const textClass = computed(() => {
   if (fontScale.value === 'xl') return 'text-xl leading-10';
   if (fontScale.value === 'lg') return 'text-lg leading-9';
   return 'text-base leading-8';
 });
 
-watch([scenesPerPage, showOnlyReady], () => {
+watch([scenesPerPage], () => {
   page.value = 1;
 });
 
@@ -60,14 +78,10 @@ function jumpTo(index: number) {
     <div class="pointer-events-none absolute inset-0 opacity-30 halftone"></div>
 
     <div class="relative z-10 mb-4 rounded-2xl border border-slate-200 bg-white/90 p-4">
-      <h2 class="comic-title text-3xl font-semibold">Storybook Reader</h2>
-      <p class="mt-1 text-sm text-slate-600">Плавный режим чтения: иллюстрация встроена в историю, текст идёт как единый разворот.</p>
+      <h2 class="comic-title text-3xl font-semibold">Режим чтения</h2>
+      <p class="mt-1 text-sm text-slate-600">Иллюстрация встроена в текст, показываем историю целиком.</p>
 
       <div class="mt-4 grid gap-2 md:grid-cols-3">
-        <label class="reader-chip">
-          <input v-model="showOnlyReady" type="checkbox" class="mr-1" /> только готовые сцены
-        </label>
-
         <label class="reader-chip">
           Сцен на разворот:
           <select v-model.number="scenesPerPage" class="reader-select">
@@ -95,8 +109,7 @@ function jumpTo(index: number) {
     <div class="relative z-10 space-y-8">
       <article v-for="scene in paged" :key="scene.id" class="storybook-spread">
         <header class="mb-3 flex items-center justify-between gap-2">
-          <h3 class="text-3xl font-semibold">Глава {{ scene.index }} · {{ scene.title }}</h3>
-          <span class="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs">{{ scene.status }}</span>
+          <h3 class="text-3xl font-semibold">Глава {{ scene.index }} · {{ scene.title ?? `Сцена ${scene.sceneNumber}` }}</h3>
         </header>
 
         <div class="panel-frame mx-auto max-w-5xl">
@@ -113,16 +126,18 @@ function jumpTo(index: number) {
     <div class="relative z-10 mt-5 flex flex-wrap items-center justify-between gap-3">
       <button class="kaboom-btn disabled:opacity-50" :disabled="page <= 1" @click="prevPage">Назад</button>
 
-      <div class="flex max-w-full gap-1 overflow-x-auto rounded-lg border border-slate-300 bg-white px-2 py-1">
-        <button
-          v-for="n in totalPages"
-          :key="`page-${n}`"
-          class="h-7 min-w-7 rounded text-xs font-semibold"
-          :class="n === page ? 'bg-slate-900 text-white' : 'bg-slate-100 hover:bg-slate-200'"
-          @click="jumpTo(n)"
-        >
-          {{ n }}
-        </button>
+      <div class="flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-slate-300 bg-white px-2 py-1">
+        <template v-for="item in pageItems" :key="`page-${item}`">
+          <span v-if="item === 'gap'" class="px-2 text-xs text-slate-400">…</span>
+          <button
+            v-else
+            class="h-7 min-w-7 rounded text-xs font-semibold"
+            :class="item === page ? 'bg-slate-900 text-white' : 'bg-slate-100 hover:bg-slate-200'"
+            @click="jumpTo(item)"
+          >
+            {{ item }}
+          </button>
+        </template>
       </div>
 
       <button class="kaboom-btn disabled:opacity-50" :disabled="page >= totalPages" @click="nextPage">Далее</button>

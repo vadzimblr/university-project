@@ -20,11 +20,11 @@ export interface DocumentSummary {
 export interface Scene {
   id: string;
   index: number;
+  sceneNumber: number;
   title?: string;
   text: string;
-  startIdx: number;
-  endIdx: number;
-  status: SceneStatus;
+  status?: SceneStatus;
+  sentenceCount?: number;
 }
 
 export interface Illustration {

@@ -60,6 +60,11 @@ const documentsView = computed(() => {
   return sorted;
 });
 
+function canOpenStatus(statusRaw: string) {
+  const normalized = statusRaw.toLowerCase().replace('processingstatus.', '').replace(/_/g, '-');
+  return normalized.includes('ready') || normalized === 'approved' || normalized === 'completed';
+}
+
 onMounted(() => {
   documentsStore.loadDocuments().catch((e) => {
     errorMsg.value = e?.message ?? 'Не удалось загрузить документы';
@@ -80,8 +85,7 @@ async function submitUpload() {
   errorMsg.value = null;
   isUploading.value = true;
   try {
-    const resp = await documentsStore.upload(selectedFile.value, startPage.value, endPage.value);
-    router.push(`/doc/${resp.document_id}`);
+    await documentsStore.upload(selectedFile.value, startPage.value, endPage.value);
   } catch (e: any) {
     errorMsg.value = e?.message ?? 'Ошибка загрузки';
   } finally {
@@ -89,7 +93,11 @@ async function submitUpload() {
   }
 }
 
-function openDocument(docId: string) {
+function openDocument(docId: string, statusRaw: string) {
+  if (!canOpenStatus(statusRaw)) {
+    errorMsg.value = 'Документ еще обрабатывается. Откройте после статуса "Готово к проверке".';
+    return;
+  }
   documentsStore.setActiveDocument(docId);
   router.push(`/doc/${docId}`);
 }
@@ -177,7 +185,9 @@ function openDocument(docId: string) {
               <p class="text-xs text-slate-500">Загружен: {{ doc.uploaded }}</p>
               <p class="text-xs text-slate-500">Статус: {{ doc.statusLabel }}</p>
             </div>
-            <button class="kaboom-btn" @click="openDocument(doc.id)">Открыть</button>
+            <button class="kaboom-btn" :disabled="!canOpenStatus(doc.statusRaw)" @click="openDocument(doc.id, doc.statusRaw)">
+              {{ canOpenStatus(doc.statusRaw) ? 'Открыть' : 'В обработке' }}
+            </button>
           </div>
         </li>
       </ul>

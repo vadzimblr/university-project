@@ -25,6 +25,27 @@ export interface UploadResponse {
   message: string;
 }
 
+export interface ScenesResponse {
+  job_id: string;
+  scenes_count: number;
+  scenes: Array<{
+    scene_number: number;
+    scene_text: string;
+    sentence_count: number;
+    word_count: number;
+    char_count: number;
+  }>;
+}
+
+export interface SceneSentencesResponse {
+  job_id: string;
+  scene_number: number;
+  sentences: Array<{
+    index: number;
+    text: string;
+  }>;
+}
+
 export async function fetchDocuments(): Promise<DocumentSummary[]> {
   const res = await fetch(`${API_BASE}/documents`);
   if (!res.ok) throw new Error(`Failed to fetch documents: ${res.status}`);
@@ -61,4 +82,53 @@ export async function uploadDocument(file: File, startPage = 1, endPage = 999): 
   }
 
   return (await res.json()) as UploadResponse;
+}
+
+export async function fetchScenes(jobId: string): Promise<ScenesResponse> {
+  const res = await fetch(`${API_BASE}/jobs/${jobId}/scenes`);
+  if (!res.ok) throw new Error(`Failed to fetch scenes: ${res.status}`);
+  return (await res.json()) as ScenesResponse;
+}
+
+export async function fetchSceneSentences(jobId: string, sceneNumber: number): Promise<SceneSentencesResponse> {
+  const res = await fetch(`${API_BASE}/jobs/${jobId}/scenes/${sceneNumber}/sentences`);
+  if (!res.ok) throw new Error(`Failed to fetch sentences: ${res.status}`);
+  return (await res.json()) as SceneSentencesResponse;
+}
+
+export async function patchScenes(jobId: string, patches: Array<{ scene_number: number; scene_text: string }>) {
+  const res = await fetch(`${API_BASE}/jobs/${jobId}/scenes`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ scenes: patches }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Patch failed: ${res.status} ${text}`);
+  }
+  return res.json();
+}
+
+export async function approveJob(jobId: string) {
+  const res = await fetch(`${API_BASE}/jobs/${jobId}/approve`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Approve failed: ${res.status} ${text}`);
+  }
+  return res.json();
+}
+
+export async function mergeScenes(jobId: string, sceneNumbers: number[]) {
+  const res = await fetch(`${API_BASE}/jobs/${jobId}/scenes/merge`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ scene_numbers: sceneNumbers }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Merge failed: ${res.status} ${text}`);
+  }
+  return res.json();
 }

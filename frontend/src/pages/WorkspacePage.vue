@@ -18,13 +18,43 @@ const docs = useDocumentsStore();
 const scenes = useScenesStore();
 const ui = useUiStore();
 
-const workspaceMode = ref<'editor' | 'reader'>('reader');
+const workspaceMode = ref<'editor' | 'reader'>('editor');
+const saving = ref(false);
+
+function normalizeStatus(raw: unknown) {
+  return String(raw ?? '')
+    .toLowerCase()
+    .replace('processingstatus.', '')
+    .replace(/_/g, '-');
+}
+
+function canEditStatus(raw: unknown) {
+  const normalized = normalizeStatus(raw);
+  return normalized.includes('ready') || normalized === 'approved' || normalized === 'completed';
+}
+
+async function initData() {
+  const id = String(route.params.id);
+  if (!docs.documents.length) {
+    await docs.loadDocuments().catch(() => {});
+  }
+  docs.setActiveDocument(id);
+  const doc = docs.activeDocument;
+  const job = doc?.processingJobs?.[0];
+  if (!job || !canEditStatus(job.status)) {
+    scenes.resetScenes();
+    ui.selectedSceneId = null;
+    router.push('/upload');
+    return;
+  }
+  if (job.id) {
+    await scenes.loadScenes(job.id);
+    ui.selectedSceneId = scenes.scenes[0]?.id ?? null;
+  }
+}
 
 onMounted(() => {
-  const id = String(route.params.id);
-  docs.setActiveDocument(id);
-  if (!scenes.scenes.length) scenes.segmentStory(14);
-  if (!ui.selectedSceneId && scenes.scenes.length) ui.selectedSceneId = scenes.scenes[0].id;
+  initData();
   window.addEventListener('keydown', onKeys);
 });
 
@@ -34,15 +64,6 @@ onUnmounted(() => {
 
 const selectedScene = computed(() => scenes.scenes.find((scene) => scene.id === ui.selectedSceneId) ?? null);
 const selectedSceneIndex = computed(() => scenes.scenes.findIndex((scene) => scene.id === ui.selectedSceneId));
-const boundaryLimits = computed(() => {
-  const idx = selectedSceneIndex.value;
-  const prev = idx > 0 ? scenes.scenes[idx - 1] : null;
-  const next = idx >= 0 && idx < scenes.scenes.length - 1 ? scenes.scenes[idx + 1] : null;
-  return {
-    minStart: prev ? prev.startIdx + 1 : 0,
-    maxEnd: next ? next.endIdx - 1 : (scenes.scenes.length ? scenes.scenes[scenes.scenes.length - 1].endIdx : 0),
-  };
-});
 const hasPrevScene = computed(() => selectedSceneIndex.value > 0);
 const hasNextScene = computed(() => selectedSceneIndex.value >= 0 && selectedSceneIndex.value < scenes.scenes.length - 1);
 const stepStage = computed(() => {
@@ -50,27 +71,64 @@ const stepStage = computed(() => {
   return 'review' as const;
 });
 
-const promptText = computed(() => {
-  if (!ui.promptSceneId) return '';
-  return scenes.illustrations[ui.promptSceneId]?.promptPreview ?? 'Prompt will appear after generation.';
+const promptText = computed(() => '');
+const showApproveConfirm = ref(false);
+const skipApproveConfirm = ref(localStorage.getItem('skipApproveConfirm') === '1');
+const hasPendingChanges = computed(() => Object.keys(scenes.dirtyTexts).length > 0 || scenes.pendingMergeCount > 0);
+const mergeThreshold = ref(3);
+const isApproved = computed(() => {
+  const raw = docs.activeDocument?.processingJobs?.[0]?.status ?? '';
+  return normalizeStatus(raw) === 'approved';
 });
 
-const storyboardReady = computed(() =>
-  scenes.scenes
-    .filter((scene) => scene.status === 'ready')
-    .slice(0, 10)
-    .map((scene) => ({ scene, illustration: scenes.illustrations[scene.id] }))
-    .filter((item) => item.illustration),
-);
+function applyMergeShort() {
+  scenes.queueMergeShortScenes(mergeThreshold.value);
+}
 
-async function generateAll() {
-  await scenes.generateApprovedWithConcurrency(3);
+async function confirmApprove() {
+  if (saving.value) return;
+  if (isApproved.value) return;
+  saving.value = true;
+  try {
+    await scenes.approveCurrentJob();
+    showApproveConfirm.value = false;
+    if (skipApproveConfirm.value) localStorage.setItem('skipApproveConfirm', '1');
+  } catch (e) {
+    console.error(e);
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function handleSave() {
+  if (saving.value) return;
+  saving.value = true;
+  const prevSceneNumber = selectedScene.value?.sceneNumber ?? null;
+  try {
+    await scenes.saveAll();
+    if (!scenes.scenes.length) {
+      ui.selectedSceneId = null;
+      return;
+    }
+    if (prevSceneNumber !== null) {
+      const match =
+        scenes.scenes.find((s) => s.sceneNumber === prevSceneNumber) ??
+        [...scenes.scenes].filter((s) => s.sceneNumber < prevSceneNumber).slice(-1)[0] ??
+        scenes.scenes[0];
+      ui.selectedSceneId = match?.id ?? scenes.scenes[0]?.id ?? null;
+    } else {
+      ui.selectedSceneId = scenes.scenes[0]?.id ?? null;
+    }
+  } catch (e) {
+    console.error(e);
+  } finally {
+    saving.value = false;
+  }
 }
 
 function onKeys(event: KeyboardEvent) {
   if (!selectedScene.value) return;
   const currentIndex = scenes.scenes.findIndex((s) => s.id === selectedScene.value?.id);
-  if (event.key.toLowerCase() === 'g') void generateAll();
   if (event.key === 'ArrowRight') ui.selectedSceneId = scenes.scenes[Math.min(scenes.scenes.length - 1, currentIndex + 1)]?.id ?? ui.selectedSceneId;
   if (event.key === 'ArrowLeft') ui.selectedSceneId = scenes.scenes[Math.max(0, currentIndex - 1)]?.id ?? ui.selectedSceneId;
 }
@@ -79,7 +137,7 @@ function onKeys(event: KeyboardEvent) {
 <template>
   <div class="min-h-screen bg-transparent page-fade">
     <Topbar
-      :document-name="docs.activeDocument?.name ?? 'Unknown document'"
+      :document-name="docs.activeDocument?.name ?? docs.activeDocument?.filename ?? 'Документ'"
       :stage="stepStage"
       @open-settings="router.push('/upload')"
       @open-help="ui.showHelpModal = true"
@@ -88,33 +146,76 @@ function onKeys(event: KeyboardEvent) {
 
     <div class="mx-auto mt-3 flex w-full max-w-[1680px] flex-wrap items-center justify-between gap-2 px-3">
       <div class="rounded-full border border-slate-200 bg-white/90 p-1 text-sm font-semibold shadow-sm">
-        <button class="rounded-full px-4 py-1.5" :class="workspaceMode === 'editor' ? 'bg-slate-900 text-white' : 'text-slate-600'" @click="workspaceMode = 'editor'">Editor mode</button>
-        <button class="rounded-full px-4 py-1.5" :class="workspaceMode === 'reader' ? 'bg-slate-900 text-white' : 'text-slate-600'" @click="workspaceMode = 'reader'">Storybook mode</button>
+        <button class="rounded-full px-4 py-1.5" :class="workspaceMode === 'editor' ? 'bg-slate-900 text-white' : 'text-slate-600'" @click="workspaceMode = 'editor'">Режим редактора</button>
+        <button class="rounded-full px-4 py-1.5" :class="workspaceMode === 'reader' ? 'bg-slate-900 text-white' : 'text-slate-600'" @click="workspaceMode = 'reader'">Режим чтения</button>
       </div>
-      <p class="text-xs text-slate-600">Reader mode — цельный просмотр как книга, Editor mode — точная правка.</p>
+      <p class="text-xs text-slate-600">Режим чтения — целостный просмотр, редактор — для правки.</p>
     </div>
 
     <main class="mx-auto grid max-w-[1780px] grid-cols-1 gap-3 p-3 lg:grid-cols-[330px_1fr]">
+      <section v-if="workspaceMode === 'editor'" class="comic-card bg-white p-4 lg:col-span-2">
+        <div class="flex flex-wrap items-center gap-3">
+          <button class="kaboom-btn inline-flex h-10 items-center justify-center px-5 text-sm leading-none" :disabled="!hasPendingChanges || saving || isApproved" @click="handleSave">
+            Сохранить изменения
+          </button>
+          <button
+            class="inline-flex h-10 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-5 text-sm font-semibold leading-none text-amber-900 transition hover:bg-amber-100"
+            :disabled="saving || isApproved"
+            @click="showApproveConfirm = true"
+          >
+            Подтвердить нарезку
+          </button>
+          <p class="text-xs text-slate-500">После подтверждения границы сцен нельзя будет изменить.</p>
+        </div>
+
+        <div class="mt-3 flex flex-wrap items-center gap-3 text-sm">
+          <div class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <span class="text-xs font-semibold text-slate-700">Автослияние</span>
+            <span class="text-xs text-slate-500">Слить сцены с предложений меньше</span>
+            <input
+              v-model.number="mergeThreshold"
+              type="number"
+              min="1"
+              class="h-8 w-20 rounded-lg border border-slate-200 bg-white px-2 text-sm"
+            />
+            <button
+              class="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-semibold hover:bg-slate-100"
+              :disabled="isApproved"
+              @click="applyMergeShort"
+            >
+              Применить
+            </button>
+            <button
+              class="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+              :disabled="isApproved || !scenes.pendingMergeSceneNumbersAuto || !Object.keys(scenes.pendingMergeSceneNumbersAuto).length"
+              @click="scenes.clearAutoMerges()"
+            >
+              Сбросить
+            </button>
+          </div>
+          <p class="text-xs text-slate-500">Слияние ставится в очередь и выполнится после сохранения.</p>
+        </div>
+      </section>
       <div v-if="workspaceMode === 'editor'" :class="['lg:block', ui.leftDrawerOpen ? 'block' : 'hidden']">
         <SceneList
           :scenes="scenes.pagedScenes"
           :illustrations="scenes.illustrations"
           :selected-scene-id="ui.selectedSceneId"
           :search="scenes.search"
-          :status-filter="scenes.statusFilter"
-          :sort-by="scenes.sortBy"
+          :status-filter="'all'"
+          :sort-by="'index'"
           :list-page="scenes.listPage"
           :total-pages="scenes.totalPages"
           :total-filtered="scenes.totalFiltered"
           :page-size="scenes.pageSize"
-          :compact-cards="scenes.compactCards"
+          :pending-merge-scenes="scenes.pendingMergeSceneNumbers"
+          :pending-merge-scenes-auto="scenes.pendingMergeSceneNumbersAuto"
           @choose="ui.selectedSceneId = $event; ui.leftDrawerOpen = false"
           @update-search="scenes.search = $event; scenes.setListPage(1)"
-          @update-status-filter="scenes.statusFilter = $event; scenes.setListPage(1)"
-          @update-sort-by="scenes.sortBy = $event"
+          @update-status-filter="() => {}"
+          @update-sort-by="() => {}"
           @update-page="scenes.setListPage($event)"
           @update-page-size="scenes.pageSize = $event; scenes.setListPage(1)"
-          @toggle-compact="scenes.compactCards = $event"
         />
       </div>
 
@@ -123,52 +224,19 @@ function onKeys(event: KeyboardEvent) {
 
         <StorybookReader v-if="workspaceMode === 'reader'" :scenes="scenes.scenes" :illustrations="scenes.illustrations" />
 
-        <div v-if="workspaceMode === 'editor'" class="comic-card bg-white p-5">
-          <div class="grid gap-2 md:grid-cols-4">
-            <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs"><b>{{ scenes.sceneStats.total }}</b><br />Total scenes</div>
-            <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-xs"><b>{{ scenes.sceneStats.approved }}</b><br />Approved</div>
-            <div class="rounded-lg border border-blue-200 bg-blue-50 p-2 text-xs"><b>{{ scenes.sceneStats.ready }}</b><br />Ready panels</div>
-            <div class="rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs"><b>{{ scenes.sceneStats.error }}</b><br />Errors</div>
-          </div>
-          <div class="mt-3 flex flex-wrap items-center gap-3">
-            <button class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold" :class="scenes.segmentationApproved ? 'bg-emerald-100 text-emerald-800' : ''" @click="scenes.approveSegmentation()">
-              {{ scenes.segmentationApproved ? 'Нарезка подтверждена' : 'Подтвердить текущую нарезку сцен' }}
-            </button>
-            <button class="kaboom-btn disabled:opacity-60" :disabled="scenes.isGeneratingAll || !scenes.canGenerateImages" @click="generateAll">
-              {{ scenes.isGeneratingAll ? 'Генерация…' : 'Сгенерировать иллюстрации' }}
-            </button>
-            <p class="text-xs text-slate-600">Для 100+ страниц: используйте page-size и compact list.</p>
-          </div>
-          <p class="mt-2 text-xs text-slate-500">Каждая 7-я сцена падает в error для демонстрации retry.</p>
-          <p v-if="!scenes.canGenerateImages" class="mt-2 text-xs font-semibold text-rose-700">Сначала одобрьте границы всех сцен (не должно остаться pending), затем генерация станет доступна.</p>
-        </div>
-
-        <div v-if="workspaceMode === 'editor' && storyboardReady.length" class="comic-card bg-white p-3">
-          <p class="comic-title mb-2 text-sm font-semibold">Storyboard strip (preview результата)</p>
-          <div class="flex gap-2 overflow-x-auto pb-1">
-            <button
-              v-for="item in storyboardReady"
-              :key="item.scene.id"
-              class="min-w-40 rounded-lg border border-slate-200 bg-white p-1 text-left"
-              @click="ui.selectedSceneId = item.scene.id"
-            >
-              <img :src="item.illustration?.imageUrl" alt="panel" class="h-20 w-full rounded border border-slate-200 object-cover" />
-              <p class="mt-1 text-[11px] font-semibold">#{{ item.scene.index }} {{ item.scene.title }}</p>
-            </button>
-          </div>
-        </div>
-
         <div v-if="workspaceMode === 'editor' && selectedScene">
           <SceneEditor
             :scene="selectedScene"
-            :illustration="scenes.illustrations[selectedScene.id]"
-            :min-start="boundaryLimits.minStart"
-            :max-end="boundaryLimits.maxEnd"
+            :sentences="scenes.sentencesMap[selectedScene.sceneNumber]"
             :has-prev="hasPrevScene"
             :has-next="hasNextScene"
-            @set-range="(id, startIdx, endIdx) => scenes.setSceneRange(id, startIdx, endIdx)"
-            @split="(id, splitAt) => scenes.splitScene(id, splitAt)"
-            @merge="(id, direction) => scenes.mergeWithNeighbor(id, direction)"
+            :merge-prev-queued="!!scenes.pendingManualMergeLinks[selectedScene.sceneNumber - 1]"
+            :merge-next-queued="!!scenes.pendingManualMergeLinks[selectedScene.sceneNumber]"
+            :read-only="isApproved"
+            @request-sentences="scenes.loadSentences(selectedScene.sceneNumber)"
+            @update-text="(text) => scenes.updateSceneText(selectedScene.sceneNumber, text)"
+            @move-sentences="(mode, count, dir) => scenes.moveSentences(selectedScene.sceneNumber, mode, count, dir)"
+            @merge-scene="(dir) => scenes.queueMerge(selectedScene.sceneNumber, dir)"
           />
         </div>
       </section>
@@ -176,5 +244,27 @@ function onKeys(event: KeyboardEvent) {
 
     <PromptModal :open="ui.showPromptModal" :prompt="promptText" @close="ui.showPromptModal = false" />
     <ShortcutsModal :open="ui.showHelpModal" @close="ui.showHelpModal = false" />
+
+    <div
+      v-if="showApproveConfirm"
+      class="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 px-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+        <h3 class="comic-title text-lg font-semibold">Подтвердить нарезку?</h3>
+        <p class="mt-2 text-sm text-slate-700">
+          После подтверждения границы сцен нельзя будет изменить, а генерация иллюстраций может стартовать автоматически. Убедитесь, что всё верно.
+        </p>
+        <label class="mt-3 flex items-center gap-2 text-sm text-slate-600">
+          <input v-model="skipApproveConfirm" type="checkbox" class="rounded border-slate-300" />
+          Не показывать снова
+        </label>
+        <div class="mt-4 flex justify-end gap-2">
+          <button class="rounded border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold" @click="showApproveConfirm = false">Отмена</button>
+          <button class="kaboom-btn px-4 py-2 text-sm" @click="confirmApprove">Подтвердить</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

@@ -11,10 +11,10 @@ const emit = defineEmits<{
 }>();
 
 const stageTitle: Record<'upload' | 'segmenting' | 'review' | 'generate', string> = {
-  upload: 'Upload',
-  segmenting: 'Segmenting',
-  review: 'Review',
-  generate: 'Generate',
+  upload: 'Загрузка',
+  segmenting: 'Разбиение',
+  review: 'Проверка',
+  generate: 'Генерация',
 };
 </script>
 
@@ -29,13 +29,9 @@ const stageTitle: Record<'upload' | 'segmenting' | 'review' | 'generate', string
         </div>
       </div>
 
-      <div class="hidden rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 md:block">
-        Stage: {{ stageTitle[stage] }}
-      </div>
-
       <div class="hidden items-center gap-2 md:flex">
-        <button class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm" @click="emit('openHelp')">Shortcuts</button>
-        <button class="rounded-full bg-slate-900 px-3 py-1.5 text-sm text-white" @click="emit('openSettings')">Настройки</button>
+        <button class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm" @click="emit('openHelp')">Шорткаты</button>
+        <button class="rounded-full bg-slate-900 px-3 py-1.5 text-sm text-white" @click="emit('openSettings')">Главная</button>
       </div>
     </div>
   </header>
