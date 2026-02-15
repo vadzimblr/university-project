@@ -119,3 +119,16 @@ export async function approveJob(jobId: string) {
   }
   return res.json();
 }
+
+export async function mergeScenes(jobId: string, sceneNumbers: number[]) {
+  const res = await fetch(`${API_BASE}/jobs/${jobId}/scenes/merge`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ scene_numbers: sceneNumbers }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Merge failed: ${res.status} ${text}`);
+  }
+  return res.json();
+}

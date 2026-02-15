@@ -13,6 +13,7 @@ defineProps<{
   totalPages: number;
   totalFiltered: number;
   pageSize: number;
+  pendingMergeScenes?: Record<number, true>;
 }>();
 
 const emit = defineEmits<{
@@ -60,6 +61,7 @@ const emit = defineEmits<{
         :scene="scene"
         :illustration="illustrations[scene.id]"
         :selected="selectedSceneId === scene.id"
+        :merge-queued="pendingMergeScenes?.[scene.sceneNumber] ?? false"
         @edit="emit('choose', $event)"
       />
     </div>

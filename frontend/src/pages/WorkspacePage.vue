@@ -19,6 +19,7 @@ const scenes = useScenesStore();
 const ui = useUiStore();
 
 const workspaceMode = ref<'editor' | 'reader'>('editor');
+const saving = ref(false);
 
 async function initData() {
   const id = String(route.params.id);
@@ -55,15 +56,45 @@ const stepStage = computed(() => {
 const promptText = computed(() => '');
 const showApproveConfirm = ref(false);
 const skipApproveConfirm = ref(localStorage.getItem('skipApproveConfirm') === '1');
+const hasPendingChanges = computed(() => Object.keys(scenes.dirtyTexts).length > 0 || scenes.pendingMergeCount > 0);
 
 async function confirmApprove() {
+  if (saving.value) return;
+  saving.value = true;
   try {
-    await scenes.saveAll();
     await scenes.approveCurrentJob();
     showApproveConfirm.value = false;
     if (skipApproveConfirm.value) localStorage.setItem('skipApproveConfirm', '1');
   } catch (e) {
     console.error(e);
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function handleSave() {
+  if (saving.value) return;
+  saving.value = true;
+  const prevSceneNumber = selectedScene.value?.sceneNumber ?? null;
+  try {
+    await scenes.saveAll();
+    if (!scenes.scenes.length) {
+      ui.selectedSceneId = null;
+      return;
+    }
+    if (prevSceneNumber !== null) {
+      const match =
+        scenes.scenes.find((s) => s.sceneNumber === prevSceneNumber) ??
+        [...scenes.scenes].filter((s) => s.sceneNumber < prevSceneNumber).slice(-1)[0] ??
+        scenes.scenes[0];
+      ui.selectedSceneId = match?.id ?? scenes.scenes[0]?.id ?? null;
+    } else {
+      ui.selectedSceneId = scenes.scenes[0]?.id ?? null;
+    }
+  } catch (e) {
+    console.error(e);
+  } finally {
+    saving.value = false;
   }
 }
 
@@ -85,17 +116,31 @@ function onKeys(event: KeyboardEvent) {
       @toggle-drawer="ui.leftDrawerOpen = !ui.leftDrawerOpen"
     />
 
+    <div class="mx-auto mt-3 flex w-full max-w-[1680px] flex-wrap items-center justify-between gap-2 px-3">
+      <div class="rounded-full border border-slate-200 bg-white/90 p-1 text-sm font-semibold shadow-sm">
+        <button class="rounded-full px-4 py-1.5" :class="workspaceMode === 'editor' ? 'bg-slate-900 text-white' : 'text-slate-600'" @click="workspaceMode = 'editor'">Режим редактора</button>
+        <button class="rounded-full px-4 py-1.5" :class="workspaceMode === 'reader' ? 'bg-slate-900 text-white' : 'text-slate-600'" @click="workspaceMode = 'reader'">Режим чтения</button>
+      </div>
+      <p class="text-xs text-slate-600">Режим чтения — целостный просмотр, редактор — для правки.</p>
+    </div>
+
     <main class="mx-auto grid max-w-[1780px] grid-cols-1 gap-3 p-3 lg:grid-cols-[330px_1fr]">
-      <section class="comic-card bg-white p-4 lg:col-span-2">
+      <section v-if="workspaceMode === 'editor'" class="comic-card bg-white p-4 lg:col-span-2">
         <div class="flex flex-wrap items-center gap-3">
-          <button class="kaboom-btn" :disabled="!Object.keys(scenes.dirtyTexts).length" @click="scenes.saveAll()">Сохранить изменения</button>
-          <button class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold" @click="showApproveConfirm = true">
+          <button class="kaboom-btn inline-flex h-10 items-center justify-center px-5 text-sm leading-none" :disabled="!hasPendingChanges || saving" @click="handleSave">
+            Сохранить изменения
+          </button>
+          <button
+            class="inline-flex h-10 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-5 text-sm font-semibold leading-none text-amber-900 transition hover:bg-amber-100"
+            :disabled="saving"
+            @click="showApproveConfirm = true"
+          >
             Подтвердить нарезку
           </button>
           <p class="text-xs text-slate-500">После подтверждения границы сцен нельзя будет изменить.</p>
         </div>
       </section>
-      <div :class="['lg:block', ui.leftDrawerOpen ? 'block' : 'hidden']">
+      <div v-if="workspaceMode === 'editor'" :class="['lg:block', ui.leftDrawerOpen ? 'block' : 'hidden']">
         <SceneList
           :scenes="scenes.pagedScenes"
           :illustrations="scenes.illustrations"
@@ -107,6 +152,7 @@ function onKeys(event: KeyboardEvent) {
           :total-pages="scenes.totalPages"
           :total-filtered="scenes.totalFiltered"
           :page-size="scenes.pageSize"
+          :pending-merge-scenes="scenes.pendingMergeSceneNumbers"
           @choose="ui.selectedSceneId = $event; ui.leftDrawerOpen = false"
           @update-search="scenes.search = $event; scenes.setListPage(1)"
           @update-status-filter="() => {}"
@@ -116,10 +162,12 @@ function onKeys(event: KeyboardEvent) {
         />
       </div>
 
-      <section class="space-y-3">
+      <section class="space-y-3" :class="workspaceMode === 'reader' ? 'lg:col-span-2' : ''">
         <OnboardingBanner v-if="ui.showOnboardingBanner" @close="ui.dismissOnboarding()" />
 
-        <div v-if="selectedScene">
+        <StorybookReader v-if="workspaceMode === 'reader'" :scenes="scenes.scenes" :illustrations="scenes.illustrations" />
+
+        <div v-if="workspaceMode === 'editor' && selectedScene">
           <SceneEditor
             :scene="selectedScene"
             :sentences="scenes.sentencesMap[selectedScene.sceneNumber]"
@@ -128,6 +176,7 @@ function onKeys(event: KeyboardEvent) {
             @request-sentences="scenes.loadSentences(selectedScene.sceneNumber)"
             @update-text="(text) => scenes.updateSceneText(selectedScene.sceneNumber, text)"
             @move-sentences="(mode, count, dir) => scenes.moveSentences(selectedScene.sceneNumber, mode, count, dir)"
+            @merge-scene="(dir) => scenes.queueMerge(selectedScene.sceneNumber, dir)"
           />
         </div>
       </section>

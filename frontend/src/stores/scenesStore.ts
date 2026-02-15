@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import type { Scene, Illustration } from '@/types/models';
-import { fetchScenes, fetchSceneSentences, patchScenes, approveJob } from '@/api/sceneSplitter';
+import { fetchScenes, fetchSceneSentences, patchScenes, approveJob, mergeScenes } from '@/api/sceneSplitter';
 
 export const useScenesStore = defineStore('scenes', () => {
   const jobId = ref<string | null>(null);
@@ -9,6 +9,7 @@ export const useScenesStore = defineStore('scenes', () => {
   const illustrations = ref<Record<string, Illustration>>({});
   const sentencesMap = ref<Record<number, string[]>>({});
   const dirtyTexts = ref<Record<number, string>>({});
+  const pendingMergeLinks = ref<Record<number, true>>({});
   const loading = ref(false);
   const error = ref<string | null>(null);
 
@@ -37,6 +38,18 @@ export const useScenesStore = defineStore('scenes', () => {
     error: 0,
   }));
 
+  const pendingMergeCount = computed(() => Object.keys(pendingMergeLinks.value).length);
+  const pendingMergeSceneNumbers = computed(() => {
+    const map: Record<number, true> = {};
+    for (const key of Object.keys(pendingMergeLinks.value)) {
+      const link = Number(key);
+      if (!Number.isFinite(link)) continue;
+      map[link] = true;
+      map[link + 1] = true;
+    }
+    return map;
+  });
+
   const canGenerateImages = computed(() => false);
   const segmentationApproved = ref(false);
   const isGeneratingAll = ref(false);
@@ -62,6 +75,7 @@ export const useScenesStore = defineStore('scenes', () => {
       listPage.value = 1;
       sentencesMap.value = {};
       dirtyTexts.value = {};
+      pendingMergeLinks.value = {};
     } catch (e: any) {
       error.value = e?.message ?? 'Не удалось загрузить сцены';
       throw e;
@@ -128,6 +142,13 @@ export const useScenesStore = defineStore('scenes', () => {
     syncSceneText(targetSceneNumber);
   }
 
+  function queueMerge(sceneNumber: number, direction: 'prev' | 'next') {
+    const link = direction === 'prev' ? sceneNumber - 1 : sceneNumber;
+    if (link < 1) return;
+    if (link >= scenes.value.length) return;
+    pendingMergeLinks.value = { ...pendingMergeLinks.value, [link]: true };
+  }
+
   function updateSceneText(sceneNumber: number, text: string) {
     const scene = scenes.value.find((s) => s.sceneNumber === sceneNumber);
     if (!scene) return;
@@ -141,9 +162,24 @@ export const useScenesStore = defineStore('scenes', () => {
       scene_number: Number(num),
       scene_text: text,
     }));
-    if (!patches.length) return;
-    await patchScenes(jobId.value, patches);
-    dirtyTexts.value = {};
+    if (patches.length) {
+      await patchScenes(jobId.value, patches);
+    }
+
+    const mergeGroups = buildMergeGroups(pendingMergeLinks.value, scenes.value.length);
+    if (mergeGroups.length) {
+      const sorted = mergeGroups.sort((a, b) => b[b.length - 1] - a[a.length - 1]);
+      for (const group of sorted) {
+        await mergeScenes(jobId.value, group);
+      }
+      await loadScenes(jobId.value);
+      pendingMergeLinks.value = {};
+      return;
+    }
+
+    if (patches.length) {
+      dirtyTexts.value = {};
+    }
   }
 
   async function approveCurrentJob() {
@@ -177,8 +213,42 @@ export const useScenesStore = defineStore('scenes', () => {
     loadSentences,
     updateSceneText,
     moveSentences,
+    queueMerge,
     syncSceneText,
     saveAll,
     approveCurrentJob,
+    pendingMergeCount,
+    pendingMergeSceneNumbers,
   };
 });
+
+function buildMergeGroups(pendingLinks = {} as Record<number, true>, totalScenes = 0) {
+  const links = Object.keys(pendingLinks)
+    .map(Number)
+    .filter((link) => link >= 1 && (totalScenes ? link < totalScenes : true))
+    .sort((a, b) => a - b);
+  if (!links.length) return [] as number[][];
+
+  const groups: number[][] = [];
+  let start = links[0];
+  let last = links[0];
+
+  for (let i = 1; i < links.length; i += 1) {
+    const link = links[i];
+    if (link === last + 1) {
+      last = link;
+      continue;
+    }
+    groups.push(range(start, last + 1));
+    start = link;
+    last = link;
+  }
+  groups.push(range(start, last + 1));
+  return groups;
+}
+
+function range(start: number, endInclusive: number) {
+  const values: number[] = [];
+  for (let i = start; i <= endInclusive; i += 1) values.push(i);
+  return values;
+}

@@ -5,6 +5,7 @@ defineProps<{
   scene: Scene;
   illustration?: Illustration;
   selected?: boolean;
+  mergeQueued?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -14,17 +15,20 @@ const emit = defineEmits<{
 
 <template>
   <article
-    class="rounded-2xl border border-slate-200 bg-white p-3 transition"
-    :class="selected ? 'ring-2 ring-emerald-200 shadow-md' : 'shadow-sm'"
+    class="rounded-2xl border p-3 transition"
+    :class="[
+      selected ? 'ring-2 ring-emerald-200 shadow-md' : 'shadow-sm',
+      mergeQueued ? 'border-amber-300 bg-amber-50/70' : 'border-slate-200 bg-white',
+    ]"
+    @click="emit('edit', scene.id)"
   >
     <div class="mb-2 flex items-start justify-between gap-2">
       <h3 class="comic-title text-sm font-semibold">#{{ scene.index }} {{ scene.title }}</h3>
+      <span v-if="mergeQueued" class="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+        Слияние
+      </span>
     </div>
 
     <p class="text-xs text-slate-700 line-clamp-3">{{ scene.text }}</p>
-
-    <div class="flex flex-wrap gap-2 text-xs">
-      <button class="rounded border border-slate-200 bg-white px-2 py-1 font-semibold" @click.stop="emit('edit', scene.id)">Редактировать</button>
-    </div>
   </article>
 </template>

@@ -12,6 +12,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   requestSentences: [];
   moveSentences: [mode: 'head' | 'tail', count: number, direction: 'prev' | 'next'];
+  mergeScene: [direction: 'prev' | 'next'];
 }>();
 
 const selected = ref<number[]>([]);
@@ -84,6 +85,12 @@ function onDrop(direction: 'prev' | 'next') {
         <button class="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-semibold" @click="emit('requestSentences')">Обновить</button>
       </div>
 
+      <div class="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-600">
+        <p class="font-semibold text-slate-700">Как редактировать</p>
+        <p>Ctrl + ЛКМ — выделить несколько предложений подряд в начале или конце сцены.</p>
+        <p>После выделения появятся кнопки переноса в соседнюю сцену.</p>
+      </div>
+
       <div class="mt-3 text-[15px] leading-7 text-slate-700">
         <span
           v-for="(sentence, idx) in sentencesList"
@@ -115,6 +122,17 @@ function onDrop(direction: 'prev' | 'next') {
         <button class="rounded border border-slate-200 bg-white px-3 py-1 text-sm font-semibold" :disabled="selectionInfo.mode !== 'tail' || !hasNext" @click="onDrop('next')">
           В следующую сцену
         </button>
+      </div>
+
+      <div class="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white p-2 text-xs">
+        <p class="font-semibold text-slate-700">Слить сцену</p>
+        <button class="rounded border border-slate-200 bg-white px-3 py-1 text-sm font-semibold" :disabled="!hasPrev" @click="emit('mergeScene', 'prev')">
+          С предыдущей
+        </button>
+        <button class="rounded border border-slate-200 bg-white px-3 py-1 text-sm font-semibold" :disabled="!hasNext" @click="emit('mergeScene', 'next')">
+          Со следующей
+        </button>
+        <span class="text-[11px] text-slate-500">Слияние применится после сохранения изменений.</span>
       </div>
     </div>
   </section>
