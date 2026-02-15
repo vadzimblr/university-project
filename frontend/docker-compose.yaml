@@ -1,0 +1,16 @@
+services:
+  frontend:
+    container_name: frontend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    networks:
+      - app-net
+    restart: unless-stopped
+
+networks:
+  app-net:
+    name: app-net
+    external: true
