@@ -77,7 +77,7 @@ function onKeys(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="min-h-screen bg-transparent">
+  <div class="min-h-screen bg-transparent page-fade">
     <Topbar
       :document-name="docs.activeDocument?.name ?? 'Unknown document'"
       :stage="stepStage"
@@ -86,10 +86,10 @@ function onKeys(event: KeyboardEvent) {
       @toggle-drawer="ui.leftDrawerOpen = !ui.leftDrawerOpen"
     />
 
-    <div class="mx-auto mt-3 flex w-full max-w-[1680px] items-center justify-between px-3">
-      <div class="rounded-xl border-2 border-slate-900 bg-white p-1 text-sm font-semibold">
-        <button class="rounded-lg px-3 py-1" :class="workspaceMode === 'editor' ? 'bg-slate-900 text-white' : ''" @click="workspaceMode = 'editor'">Editor mode</button>
-        <button class="rounded-lg px-3 py-1" :class="workspaceMode === 'reader' ? 'bg-slate-900 text-white' : ''" @click="workspaceMode = 'reader'">Storybook mode</button>
+    <div class="mx-auto mt-3 flex w-full max-w-[1680px] flex-wrap items-center justify-between gap-2 px-3">
+      <div class="rounded-full border border-slate-200 bg-white/90 p-1 text-sm font-semibold shadow-sm">
+        <button class="rounded-full px-4 py-1.5" :class="workspaceMode === 'editor' ? 'bg-slate-900 text-white' : 'text-slate-600'" @click="workspaceMode = 'editor'">Editor mode</button>
+        <button class="rounded-full px-4 py-1.5" :class="workspaceMode === 'reader' ? 'bg-slate-900 text-white' : 'text-slate-600'" @click="workspaceMode = 'reader'">Storybook mode</button>
       </div>
       <p class="text-xs text-slate-600">Reader mode — цельный просмотр как книга, Editor mode — точная правка.</p>
     </div>
@@ -123,15 +123,15 @@ function onKeys(event: KeyboardEvent) {
 
         <StorybookReader v-if="workspaceMode === 'reader'" :scenes="scenes.scenes" :illustrations="scenes.illustrations" />
 
-        <div v-if="workspaceMode === 'editor'" class="comic-card bg-white p-4">
+        <div v-if="workspaceMode === 'editor'" class="comic-card bg-white p-5">
           <div class="grid gap-2 md:grid-cols-4">
-            <div class="rounded-lg border-2 border-slate-900 bg-slate-50 p-2 text-xs"><b>{{ scenes.sceneStats.total }}</b><br />Total scenes</div>
-            <div class="rounded-lg border-2 border-slate-900 bg-emerald-50 p-2 text-xs"><b>{{ scenes.sceneStats.approved }}</b><br />Approved</div>
-            <div class="rounded-lg border-2 border-slate-900 bg-blue-50 p-2 text-xs"><b>{{ scenes.sceneStats.ready }}</b><br />Ready panels</div>
-            <div class="rounded-lg border-2 border-slate-900 bg-red-50 p-2 text-xs"><b>{{ scenes.sceneStats.error }}</b><br />Errors</div>
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs"><b>{{ scenes.sceneStats.total }}</b><br />Total scenes</div>
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-xs"><b>{{ scenes.sceneStats.approved }}</b><br />Approved</div>
+            <div class="rounded-lg border border-blue-200 bg-blue-50 p-2 text-xs"><b>{{ scenes.sceneStats.ready }}</b><br />Ready panels</div>
+            <div class="rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs"><b>{{ scenes.sceneStats.error }}</b><br />Errors</div>
           </div>
           <div class="mt-3 flex flex-wrap items-center gap-3">
-            <button class="rounded-xl border-2 border-slate-900 bg-white px-3 py-1.5 text-sm font-semibold" :class="scenes.segmentationApproved ? 'bg-emerald-200' : ''" @click="scenes.approveSegmentation()">
+            <button class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold" :class="scenes.segmentationApproved ? 'bg-emerald-100 text-emerald-800' : ''" @click="scenes.approveSegmentation()">
               {{ scenes.segmentationApproved ? 'Нарезка подтверждена' : 'Подтвердить текущую нарезку сцен' }}
             </button>
             <button class="kaboom-btn disabled:opacity-60" :disabled="scenes.isGeneratingAll || !scenes.canGenerateImages" @click="generateAll">
@@ -144,15 +144,15 @@ function onKeys(event: KeyboardEvent) {
         </div>
 
         <div v-if="workspaceMode === 'editor' && storyboardReady.length" class="comic-card bg-white p-3">
-          <p class="comic-title mb-2 text-sm font-black">Storyboard strip (preview результата)</p>
+          <p class="comic-title mb-2 text-sm font-semibold">Storyboard strip (preview результата)</p>
           <div class="flex gap-2 overflow-x-auto pb-1">
             <button
               v-for="item in storyboardReady"
               :key="item.scene.id"
-              class="min-w-40 rounded-lg border-2 border-slate-900 bg-white p-1 text-left"
+              class="min-w-40 rounded-lg border border-slate-200 bg-white p-1 text-left"
               @click="ui.selectedSceneId = item.scene.id"
             >
-              <img :src="item.illustration?.imageUrl" alt="panel" class="h-20 w-full rounded border border-slate-900 object-cover" />
+              <img :src="item.illustration?.imageUrl" alt="panel" class="h-20 w-full rounded border border-slate-200 object-cover" />
               <p class="mt-1 text-[11px] font-semibold">#{{ item.scene.index }} {{ item.scene.title }}</p>
             </button>
           </div>

@@ -59,9 +59,9 @@ function jumpTo(index: number) {
   <section class="comic-card relative overflow-hidden bg-white p-5">
     <div class="pointer-events-none absolute inset-0 opacity-30 halftone"></div>
 
-    <div class="relative z-10 mb-4 rounded-2xl border-2 border-slate-900 bg-amber-50 p-4">
-      <h2 class="comic-title text-3xl font-black">📖 Storybook Reader</h2>
-      <p class="mt-1 text-sm text-slate-700">Плавный режим чтения: иллюстрация встроена в историю, текст идёт как единый разворот.</p>
+    <div class="relative z-10 mb-4 rounded-2xl border border-slate-200 bg-white/90 p-4">
+      <h2 class="comic-title text-3xl font-semibold">Storybook Reader</h2>
+      <p class="mt-1 text-sm text-slate-600">Плавный режим чтения: иллюстрация встроена в историю, текст идёт как единый разворот.</p>
 
       <div class="mt-4 grid gap-2 md:grid-cols-3">
         <label class="reader-chip">
@@ -87,7 +87,7 @@ function jumpTo(index: number) {
       </div>
     </div>
 
-    <div class="relative z-10 mb-4 flex items-center justify-between rounded-xl border-2 border-slate-900 bg-white px-3 py-2 text-sm font-semibold">
+    <div class="relative z-10 mb-4 flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold">
       <span>Разворот {{ page }} / {{ totalPages }}</span>
       <span class="rounded-full bg-slate-900 px-2 py-0.5 text-xs text-white">{{ readerScenes.length }} сцен</span>
     </div>
@@ -95,8 +95,8 @@ function jumpTo(index: number) {
     <div class="relative z-10 space-y-8">
       <article v-for="scene in paged" :key="scene.id" class="storybook-spread">
         <header class="mb-3 flex items-center justify-between gap-2">
-          <h3 class="text-3xl font-black">Глава {{ scene.index }} · {{ scene.title }}</h3>
-          <span class="rounded-full border border-slate-900 bg-white px-2 py-0.5 text-xs">{{ scene.status }}</span>
+          <h3 class="text-3xl font-semibold">Глава {{ scene.index }} · {{ scene.title }}</h3>
+          <span class="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs">{{ scene.status }}</span>
         </header>
 
         <div class="panel-frame mx-auto max-w-5xl">
@@ -104,14 +104,14 @@ function jumpTo(index: number) {
           <div v-else class="flex h-[420px] items-center justify-center bg-slate-200 text-slate-500">Иллюстрация пока не готова</div>
         </div>
 
-        <div class="mx-auto mt-4 max-w-4xl rounded-2xl border-2 border-slate-900 bg-white/95 p-6 shadow-[5px_5px_0_#111827]" :class="textClass">
+        <div class="mx-auto mt-4 max-w-4xl rounded-2xl border border-slate-200 bg-white/95 p-6 shadow-sm" :class="textClass">
           {{ scene.text }}
         </div>
       </article>
     </div>
 
     <div class="relative z-10 mt-5 flex flex-wrap items-center justify-between gap-3">
-      <button class="kaboom-btn disabled:opacity-50" :disabled="page <= 1" @click="prevPage">← Назад</button>
+      <button class="kaboom-btn disabled:opacity-50" :disabled="page <= 1" @click="prevPage">Назад</button>
 
       <div class="flex max-w-full gap-1 overflow-x-auto rounded-lg border border-slate-300 bg-white px-2 py-1">
         <button
@@ -125,7 +125,7 @@ function jumpTo(index: number) {
         </button>
       </div>
 
-      <button class="kaboom-btn disabled:opacity-50" :disabled="page >= totalPages" @click="nextPage">Далее →</button>
+      <button class="kaboom-btn disabled:opacity-50" :disabled="page >= totalPages" @click="nextPage">Далее</button>
     </div>
   </section>
 </template>

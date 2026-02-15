@@ -188,8 +188,8 @@ function isSelected(idx: number) {
 
 <template>
   <section class="comic-card space-y-4 bg-white p-5 xl:p-6">
-    <div class="rounded-lg border-2 border-slate-900 bg-amber-50 p-3 text-sm">
-      <p class="font-black">Редактирование границ</p>
+    <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+      <p class="font-semibold">Редактирование границ</p>
       <ol class="mt-1 list-decimal pl-5 text-xs text-slate-700">
         <li><b>Ctrl + ЛКМ</b> выделяет несколько крайних предложений.</li>
         <li>Выделение с начала дропай в <b>PREV</b>, с конца — в <b>NEXT</b>.</li>
@@ -199,10 +199,10 @@ function isSelected(idx: number) {
 
     <div class="flex items-center justify-between gap-2">
       <div>
-        <h2 class="comic-title text-2xl font-black">{{ scene.title }}</h2>
+        <h2 class="comic-title text-2xl font-semibold">{{ scene.title }}</h2>
         <p class="text-sm text-slate-600">Границы сцены: {{ startValue }}-{{ endValue }}</p>
       </div>
-      <span class="rounded-full border border-slate-900 bg-white px-2 py-1 text-xs font-semibold">{{ scene.status }}</span>
+      <span class="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-semibold">{{ scene.status }}</span>
     </div>
 
     <div class="panel-frame">
@@ -210,7 +210,7 @@ function isSelected(idx: number) {
       <div v-else class="flex h-80 items-center justify-center bg-slate-200 text-slate-500">Иллюстрация пока не готова</div>
     </div>
 
-    <div class="rounded-xl border-2 border-slate-900 bg-white p-3">
+    <div class="rounded-xl border border-slate-200 bg-white p-3">
       <p class="text-sm font-semibold">Подсказка</p>
       <p class="mt-1 text-xs text-slate-600">{{ dragHint }}</p>
     </div>
@@ -233,18 +233,18 @@ function isSelected(idx: number) {
         <p class="text-xs text-slate-600">{{ before.join(' ') || '—' }}</p>
       </div>
 
-      <div class="story-strip border-slate-900 bg-blue-50 xl:col-span-1">
-        <p class="mb-1 text-xs font-bold uppercase text-slate-700">Текущая сцена (Ctrl+ЛКМ / drag / клик для split)</p>
+    <div class="story-strip border-slate-200 bg-slate-50 xl:col-span-1">
+        <p class="mb-1 text-xs font-semibold uppercase text-slate-600">Текущая сцена (Ctrl+ЛКМ / drag / клик для split)</p>
         <ul class="max-h-80 space-y-1 overflow-y-auto">
           <li
             v-for="(sentence, localIdx) in inside"
             :key="`${scene.id}-${localIdx}`"
-            class="cursor-pointer rounded border border-slate-200 px-2 py-1 text-sm"
+            class="cursor-pointer rounded border border-slate-200 bg-white px-2 py-1 text-sm"
             :class="[
-              splitIdx === startValue + localIdx ? 'bg-yellow-200 border-slate-900' : 'bg-white',
-              isSelected(localIdx) ? 'border-indigo-700 bg-indigo-100' : '',
-              localIdx === 0 ? 'border-l-4 border-l-emerald-700' : '',
-              localIdx === inside.length - 1 ? 'border-r-4 border-r-violet-700' : '',
+              splitIdx === startValue + localIdx ? 'bg-amber-100 border-amber-200' : '',
+              isSelected(localIdx) ? 'border-emerald-300 bg-emerald-50' : '',
+              localIdx === 0 ? 'border-l-4 border-l-emerald-400' : '',
+              localIdx === inside.length - 1 ? 'border-r-4 border-r-slate-400' : '',
             ]"
             :draggable="localIdx === 0 || localIdx === inside.length - 1 || isSelected(localIdx)"
             @dragstart="onSentenceDragStart($event, localIdx)"
@@ -272,8 +272,8 @@ function isSelected(idx: number) {
 
     <div class="flex flex-wrap gap-2">
       <button class="kaboom-btn" :disabled="splitIdx === null" @click="splitIdx !== null && emit('split', scene.id, splitIdx)">Split по выделенному</button>
-      <button class="rounded border-2 border-slate-900 bg-white px-2 py-1 text-sm font-semibold" @click="emit('merge', scene.id, 'prev')">Merge prev</button>
-      <button class="rounded border-2 border-slate-900 bg-white px-2 py-1 text-sm font-semibold" @click="emit('merge', scene.id, 'next')">Merge next</button>
+      <button class="rounded border border-slate-200 bg-white px-2 py-1 text-sm font-semibold" @click="emit('merge', scene.id, 'prev')">Merge prev</button>
+      <button class="rounded border border-slate-200 bg-white px-2 py-1 text-sm font-semibold" @click="emit('merge', scene.id, 'next')">Merge next</button>
     </div>
   </section>
 </template>

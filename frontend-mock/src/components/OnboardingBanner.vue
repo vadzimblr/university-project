@@ -3,8 +3,8 @@ const emit = defineEmits<{ close: [] }>();
 </script>
 
 <template>
-  <div class="comic-card halftone bg-yellow-100 p-4">
-    <h3 class="comic-title text-sm font-black">First issue: как собрать storybook, а не набор картинок</h3>
+  <div class="comic-card halftone bg-white p-4">
+    <h3 class="comic-title text-sm font-semibold">First issue: как собрать storybook, а не набор картинок</h3>
     <ul class="mt-2 list-disc pl-5 text-sm text-slate-800">
       <li>Подправь Start/End, чтобы сцены читались как последовательные кадры.</li>
       <li>Split/Merge используй для темпа: короткие моменты vs длинные развороты.</li>
