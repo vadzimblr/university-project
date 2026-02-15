@@ -4,6 +4,7 @@ from app.repositories.processing_job_repository import ProcessingJobRepository
 from app.utils.database import get_db_session
 from app.services.tasks.scene_splitting_task import scene_splitting_task
 from sqlalchemy.orm import Session
+from app.models.enums import ProcessingStatus, ProcessingStep
 
 
 @celery_app.task(name="extract_text_task", bind=True)
@@ -12,7 +13,7 @@ def extract_text_task(self, job_id: str, pdf_bytes: bytes, start_page: int = 1, 
     job_repo = ProcessingJobRepository(session)
     
     try:
-        job_repo.update_status(job_id, "extracting", "text_extraction")
+        job_repo.update_status(job_id, ProcessingStatus.EXTRACTING, ProcessingStep.TEXT_EXTRACTION)
         
         service = PdfTextExtractorService(pdf_bytes)
         extracted_text = service.extract_text(start_page, end_page)
@@ -29,7 +30,7 @@ def extract_text_task(self, job_id: str, pdf_bytes: bytes, start_page: int = 1, 
         }
         
     except Exception as e:
-        job_repo.update_status(job_id, "failed", error_message=str(e))
+        job_repo.update_status(job_id, ProcessingStatus.FAILED, error_message=str(e))
         
         raise self.retry(
             exc=e,
