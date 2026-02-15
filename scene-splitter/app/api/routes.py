@@ -14,6 +14,12 @@ from app.services.job_approval_service import (
     JobNotReadyError,
     ScenesMissingError,
 )
+from app.services.scene_update_service import (
+    SceneUpdateService,
+    JobNotEditableError,
+    SceneNotFoundError,
+)
+from app.api.schemas import ScenePatchRequest, ScenePatchResponse, SceneResponse
 
 router = APIRouter()
 
@@ -141,6 +147,41 @@ async def get_job_scenes(
             for scene in scenes
         ]
     }
+
+
+@router.patch("/jobs/{job_id}/scenes", response_model=ScenePatchResponse)
+async def patch_job_scenes(
+    job_id: str,
+    payload: ScenePatchRequest,
+    session: Session = Depends(get_db)
+):
+    service = SceneUpdateService(session)
+
+    try:
+        updated_scenes = service.update_scenes(job_id, [scene.model_dump() for scene in payload.scenes])
+    except JobNotEditableError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except SceneNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    return ScenePatchResponse(
+        job_id=job_id,
+        scenes=[
+            SceneResponse(
+                scene_id=scene.id,
+                scene_number=scene.scene_number,
+                scene_text=scene.scene_text,
+                sentence_count=scene.sentence_count,
+                word_count=scene.word_count,
+                char_count=scene.char_count,
+                start_sentence_idx=scene.start_sentence_idx,
+                end_sentence_idx=scene.end_sentence_idx,
+                boundary_confidence=scene.boundary_confidence,
+            )
+            for scene in updated_scenes
+        ]
+    )
+
 @router.post("/jobs/{job_id}/approve")
 async def approve_job(
     job_id: str,
