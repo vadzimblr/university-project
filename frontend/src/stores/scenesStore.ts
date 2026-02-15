@@ -81,6 +81,17 @@ export const useScenesStore = defineStore('scenes', () => {
     }
   }
 
+  function resetScenes() {
+    jobId.value = null;
+    scenes.value = [];
+    sentencesMap.value = {};
+    dirtyTexts.value = {};
+    pendingMergeLinks.value = {};
+    pendingMergeLinksAuto.value = {};
+    listPage.value = 1;
+    error.value = null;
+  }
+
   async function loadSentences(sceneNumber: number) {
     if (!jobId.value) return [];
     if (sentencesMap.value[sceneNumber]) return sentencesMap.value[sceneNumber];
@@ -243,6 +254,7 @@ export const useScenesStore = defineStore('scenes', () => {
     isGeneratingAll,
     setListPage,
     loadScenes,
+    resetScenes,
     loadSentences,
     updateSceneText,
     moveSentences,

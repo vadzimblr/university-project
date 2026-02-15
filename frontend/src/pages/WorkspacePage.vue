@@ -21,6 +21,18 @@ const ui = useUiStore();
 const workspaceMode = ref<'editor' | 'reader'>('editor');
 const saving = ref(false);
 
+function normalizeStatus(raw: unknown) {
+  return String(raw ?? '')
+    .toLowerCase()
+    .replace('processingstatus.', '')
+    .replace(/_/g, '-');
+}
+
+function canEditStatus(raw: unknown) {
+  const normalized = normalizeStatus(raw);
+  return normalized.includes('ready') || normalized === 'approved' || normalized === 'completed';
+}
+
 async function initData() {
   const id = String(route.params.id);
   if (!docs.documents.length) {
@@ -28,9 +40,15 @@ async function initData() {
   }
   docs.setActiveDocument(id);
   const doc = docs.activeDocument;
-  const jobId = doc?.processingJobs?.[0]?.id;
-  if (jobId) {
-    await scenes.loadScenes(jobId);
+  const job = doc?.processingJobs?.[0];
+  if (!job || !canEditStatus(job.status)) {
+    scenes.resetScenes();
+    ui.selectedSceneId = null;
+    router.push('/upload');
+    return;
+  }
+  if (job.id) {
+    await scenes.loadScenes(job.id);
     ui.selectedSceneId = scenes.scenes[0]?.id ?? null;
   }
 }
@@ -60,8 +78,7 @@ const hasPendingChanges = computed(() => Object.keys(scenes.dirtyTexts).length >
 const mergeThreshold = ref(3);
 const isApproved = computed(() => {
   const raw = docs.activeDocument?.processingJobs?.[0]?.status ?? '';
-  const normalized = String(raw).toLowerCase().replace('processingstatus.', '');
-  return normalized === 'approved';
+  return normalizeStatus(raw) === 'approved';
 });
 
 function applyMergeShort() {
