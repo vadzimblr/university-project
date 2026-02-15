@@ -24,6 +24,7 @@ export interface Scene {
   title?: string;
   text: string;
   status?: SceneStatus;
+  sentenceCount?: number;
 }
 
 export interface Illustration {

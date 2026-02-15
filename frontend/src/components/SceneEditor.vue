@@ -7,6 +7,9 @@ const props = defineProps<{
   sentences?: string[];
   hasPrev: boolean;
   hasNext: boolean;
+  mergePrevQueued?: boolean;
+  mergeNextQueued?: boolean;
+  readOnly?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -38,6 +41,7 @@ watch(
 );
 
 function toggleSelect(idx: number, evt: MouseEvent) {
+  if (props.readOnly) return;
   if (!evt.ctrlKey) return;
   const pos = selected.value.indexOf(idx);
   if (pos === -1) selected.value.push(idx);
@@ -56,6 +60,7 @@ const selectionInfo = computed(() => {
 });
 
 function onDrop(direction: 'prev' | 'next') {
+  if (props.readOnly) return;
   const { mode, count } = selectionInfo.value;
   if (!mode || count === 0) return;
   if (mode === 'head' && direction === 'next') return;
@@ -89,6 +94,7 @@ function onDrop(direction: 'prev' | 'next') {
         <p class="font-semibold text-slate-700">Как редактировать</p>
         <p>Ctrl + ЛКМ — выделить несколько предложений подряд в начале или конце сцены.</p>
         <p>После выделения появятся кнопки переноса в соседнюю сцену.</p>
+        <p v-if="readOnly" class="mt-1 text-amber-700">Редактирование отключено: документ подтвержден.</p>
       </div>
 
       <div class="mt-3 text-[15px] leading-7 text-slate-700">
@@ -116,23 +122,34 @@ function onDrop(direction: 'prev' | 'next') {
         <p class="font-semibold">
           Выбрано {{ selectionInfo.count }} ({{ selectionInfo.mode === 'head' ? 'начало' : 'конец' }} сцены)
         </p>
-        <button class="rounded border border-slate-200 bg-white px-3 py-1 text-sm font-semibold" :disabled="selectionInfo.mode !== 'head' || !hasPrev" @click="onDrop('prev')">
+        <button class="rounded border border-slate-200 bg-white px-3 py-1 text-sm font-semibold" :disabled="readOnly || selectionInfo.mode !== 'head' || !hasPrev" @click="onDrop('prev')">
           В предыдущую сцену
         </button>
-        <button class="rounded border border-slate-200 bg-white px-3 py-1 text-sm font-semibold" :disabled="selectionInfo.mode !== 'tail' || !hasNext" @click="onDrop('next')">
+        <button class="rounded border border-slate-200 bg-white px-3 py-1 text-sm font-semibold" :disabled="readOnly || selectionInfo.mode !== 'tail' || !hasNext" @click="onDrop('next')">
           В следующую сцену
         </button>
       </div>
 
       <div class="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white p-2 text-xs">
         <p class="font-semibold text-slate-700">Слить сцену</p>
-        <button class="rounded border border-slate-200 bg-white px-3 py-1 text-sm font-semibold" :disabled="!hasPrev" @click="emit('mergeScene', 'prev')">
-          С предыдущей
+        <button
+          class="rounded border px-3 py-1 text-sm font-semibold"
+          :class="mergePrevQueued ? 'border-amber-300 bg-amber-100 text-amber-900' : 'border-slate-200 bg-white'"
+          :disabled="readOnly || !hasPrev"
+          @click="emit('mergeScene', 'prev')"
+        >
+          {{ mergePrevQueued ? 'Отменить с предыдущей' : 'С предыдущей' }}
         </button>
-        <button class="rounded border border-slate-200 bg-white px-3 py-1 text-sm font-semibold" :disabled="!hasNext" @click="emit('mergeScene', 'next')">
-          Со следующей
+        <button
+          class="rounded border px-3 py-1 text-sm font-semibold"
+          :class="mergeNextQueued ? 'border-amber-300 bg-amber-100 text-amber-900' : 'border-slate-200 bg-white'"
+          :disabled="readOnly || !hasNext"
+          @click="emit('mergeScene', 'next')"
+        >
+          {{ mergeNextQueued ? 'Отменить со следующей' : 'Со следующей' }}
         </button>
         <span class="text-[11px] text-slate-500">Слияние применится после сохранения изменений.</span>
+        <span v-if="mergePrevQueued || mergeNextQueued" class="text-[11px] text-slate-500">Нажмите еще раз, чтобы отменить.</span>
       </div>
     </div>
   </section>

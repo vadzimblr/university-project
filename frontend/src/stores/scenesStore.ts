@@ -10,6 +10,7 @@ export const useScenesStore = defineStore('scenes', () => {
   const sentencesMap = ref<Record<number, string[]>>({});
   const dirtyTexts = ref<Record<number, string>>({});
   const pendingMergeLinks = ref<Record<number, true>>({});
+  const pendingMergeLinksAuto = ref<Record<number, true>>({});
   const loading = ref(false);
   const error = ref<string | null>(null);
 
@@ -38,17 +39,11 @@ export const useScenesStore = defineStore('scenes', () => {
     error: 0,
   }));
 
-  const pendingMergeCount = computed(() => Object.keys(pendingMergeLinks.value).length);
-  const pendingMergeSceneNumbers = computed(() => {
-    const map: Record<number, true> = {};
-    for (const key of Object.keys(pendingMergeLinks.value)) {
-      const link = Number(key);
-      if (!Number.isFinite(link)) continue;
-      map[link] = true;
-      map[link + 1] = true;
-    }
-    return map;
-  });
+  const pendingMergeLinksAll = computed(() => ({ ...pendingMergeLinks.value, ...pendingMergeLinksAuto.value }));
+  const pendingMergeCount = computed(() => Object.keys(pendingMergeLinksAll.value).length);
+  const pendingMergeSceneNumbers = computed(() => mapScenesForLinks(pendingMergeLinks.value));
+  const pendingMergeSceneNumbersAuto = computed(() => mapScenesForLinks(pendingMergeLinksAuto.value));
+  const pendingManualMergeLinks = computed(() => ({ ...pendingMergeLinks.value }));
 
   const canGenerateImages = computed(() => false);
   const segmentationApproved = ref(false);
@@ -70,12 +65,14 @@ export const useScenesStore = defineStore('scenes', () => {
         index: s.scene_number,
         title: `Сцена ${s.scene_number}`,
         text: s.scene_text,
+        sentenceCount: s.sentence_count,
         status: 'pending',
       }));
       listPage.value = 1;
       sentencesMap.value = {};
       dirtyTexts.value = {};
       pendingMergeLinks.value = {};
+      pendingMergeLinksAuto.value = {};
     } catch (e: any) {
       error.value = e?.message ?? 'Не удалось загрузить сцены';
       throw e;
@@ -113,6 +110,14 @@ export const useScenesStore = defineStore('scenes', () => {
     return sentencesMap.value[sceneNumber];
   }
 
+  function getSceneSentenceCount(sceneNumber: number) {
+    if (sentencesMap.value[sceneNumber]) return sentencesMap.value[sceneNumber].length;
+    const scene = scenes.value.find((s) => s.sceneNumber === sceneNumber);
+    if (!scene) return 0;
+    if (scene.sentenceCount != null) return scene.sentenceCount;
+    return estimateSentenceCount(scene.text);
+  }
+
   function moveSentences(sceneNumber: number, mode: 'head' | 'tail', count: number, direction: 'prev' | 'next') {
     const targetSceneNumber = direction === 'prev' ? sceneNumber - 1 : sceneNumber + 1;
     const source = ensureSentenceList(sceneNumber);
@@ -146,7 +151,34 @@ export const useScenesStore = defineStore('scenes', () => {
     const link = direction === 'prev' ? sceneNumber - 1 : sceneNumber;
     if (link < 1) return;
     if (link >= scenes.value.length) return;
-    pendingMergeLinks.value = { ...pendingMergeLinks.value, [link]: true };
+    const pending = { ...pendingMergeLinks.value };
+    if (pending[link]) {
+      delete pending[link];
+    } else {
+      pending[link] = true;
+    }
+    pendingMergeLinks.value = pending;
+  }
+
+  function queueMergeShortScenes(threshold: number) {
+    if (!Number.isFinite(threshold)) return;
+    const limit = Math.max(1, Math.floor(threshold));
+    const pending: Record<number, true> = {};
+    const total = scenes.value.length;
+    for (const scene of scenes.value) {
+      const count = getSceneSentenceCount(scene.sceneNumber);
+      if (count >= limit) continue;
+      if (scene.sceneNumber > 1) {
+        pending[scene.sceneNumber - 1] = true;
+      } else if (scene.sceneNumber < total) {
+        pending[scene.sceneNumber] = true;
+      }
+    }
+    pendingMergeLinksAuto.value = pending;
+  }
+
+  function clearAutoMerges() {
+    pendingMergeLinksAuto.value = {};
   }
 
   function updateSceneText(sceneNumber: number, text: string) {
@@ -166,7 +198,7 @@ export const useScenesStore = defineStore('scenes', () => {
       await patchScenes(jobId.value, patches);
     }
 
-    const mergeGroups = buildMergeGroups(pendingMergeLinks.value, scenes.value.length);
+    const mergeGroups = buildMergeGroups(pendingMergeLinksAll.value, scenes.value.length);
     if (mergeGroups.length) {
       const sorted = mergeGroups.sort((a, b) => b[b.length - 1] - a[a.length - 1]);
       for (const group of sorted) {
@@ -174,6 +206,7 @@ export const useScenesStore = defineStore('scenes', () => {
       }
       await loadScenes(jobId.value);
       pendingMergeLinks.value = {};
+      pendingMergeLinksAuto.value = {};
       return;
     }
 
@@ -214,13 +247,28 @@ export const useScenesStore = defineStore('scenes', () => {
     updateSceneText,
     moveSentences,
     queueMerge,
+    queueMergeShortScenes,
+    clearAutoMerges,
     syncSceneText,
     saveAll,
     approveCurrentJob,
     pendingMergeCount,
     pendingMergeSceneNumbers,
+    pendingMergeSceneNumbersAuto,
+    pendingManualMergeLinks,
   };
 });
+
+function mapScenesForLinks(links: Record<number, true>) {
+  const map: Record<number, true> = {};
+  for (const key of Object.keys(links)) {
+    const link = Number(key);
+    if (!Number.isFinite(link)) continue;
+    map[link] = true;
+    map[link + 1] = true;
+  }
+  return map;
+}
 
 function buildMergeGroups(pendingLinks = {} as Record<number, true>, totalScenes = 0) {
   const links = Object.keys(pendingLinks)
@@ -251,4 +299,9 @@ function range(start: number, endInclusive: number) {
   const values: number[] = [];
   for (let i = start; i <= endInclusive; i += 1) values.push(i);
   return values;
+}
+
+function estimateSentenceCount(text: string) {
+  if (!text) return 0;
+  return text.split(/(?<=[.!?])\s+/).filter(Boolean).length;
 }
