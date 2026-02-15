@@ -2,7 +2,7 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from sqlalchemy.orm import Session
 
 from app.services.tasks.extract_text_task import extract_text_task
-from app.models import Scene
+from app.models import Scene, Document
 from app.repositories.processing_job_repository import ProcessingJobRepository
 from app.repositories.document_repository import DocumentRepository
 from app.models.enums import ProcessingStatus
@@ -19,9 +19,46 @@ from app.services.scene_update_service import (
     JobNotEditableError,
     SceneNotFoundError,
 )
-from app.api.schemas import ScenePatchRequest, ScenePatchResponse, SceneResponse
+from app.services.scene_query_service import (
+    SceneQueryService,
+    SceneNotFoundError as SceneQueryNotFound,
+    JobNotFoundError as JobQueryNotFound,
+)
+from app.api.schemas import (
+    ScenePatchRequest,
+    ScenePatchResponse,
+    SceneResponse,
+    DocumentsResponse,
+    DocumentItem,
+    ProcessingJobRef,
+    SceneSentencesResponse,
+    SceneSentence,
+)
 
 router = APIRouter()
+
+@router.get("/documents", response_model=DocumentsResponse)
+async def list_documents(session: Session = Depends(get_db)):
+    documents = session.query(Document).all()
+    return DocumentsResponse(
+        documents=[
+            DocumentItem(
+                id=doc.id,
+                filename=doc.filename,
+                file_size=doc.file_size,
+                mime_type=doc.mime_type,
+                processing_jobs=[
+                    ProcessingJobRef(
+                        id=job.id,
+                        status=str(job.status),
+                        current_step=str(job.current_step) if job.current_step else None,
+                    )
+                    for job in doc.processing_jobs
+                ],
+            )
+            for doc in documents
+        ]
+    )
 
 
 @router.post("/split-scenes/")
@@ -147,6 +184,29 @@ async def get_job_scenes(
             for scene in scenes
         ]
     }
+
+@router.get("/jobs/{job_id}/scenes/{scene_number}/sentences", response_model=SceneSentencesResponse)
+async def get_scene_sentences(
+    job_id: str,
+    scene_number: int,
+    session: Session = Depends(get_db)
+):
+    service = SceneQueryService(session)
+    try:
+        sentences = service.get_scene_sentences(job_id, scene_number)
+    except JobQueryNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except SceneQueryNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    return SceneSentencesResponse(
+        job_id=job_id,
+        scene_number=scene_number,
+        sentences=[
+            SceneSentence(index=i + 1, text=sent)
+            for i, sent in enumerate(sentences)
+        ],
+    )
 
 
 @router.patch("/jobs/{job_id}/scenes", response_model=ScenePatchResponse)

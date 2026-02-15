@@ -28,3 +28,34 @@ class SceneResponse(BaseModel):
 class ScenePatchResponse(BaseModel):
     job_id: UUID
     scenes: List[SceneResponse]
+
+
+# --- documents listing ---
+class ProcessingJobRef(BaseModel):
+    id: UUID
+    status: str
+    current_step: Optional[str]
+
+
+class DocumentItem(BaseModel):
+    id: UUID
+    filename: str
+    file_size: Optional[int]
+    mime_type: Optional[str]
+    processing_jobs: List[ProcessingJobRef]
+
+
+class DocumentsResponse(BaseModel):
+    documents: List[DocumentItem]
+
+
+# --- scene sentences ---
+class SceneSentence(BaseModel):
+    index: int = Field(..., description="Порядковый номер предложения в сцене (с 1)")
+    text: str
+
+
+class SceneSentencesResponse(BaseModel):
+    job_id: UUID
+    scene_number: int
+    sentences: List[SceneSentence]
