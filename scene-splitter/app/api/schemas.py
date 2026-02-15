@@ -30,6 +30,18 @@ class ScenePatchResponse(BaseModel):
     scenes: List[SceneResponse]
 
 
+class SceneMergeRequest(BaseModel):
+    scene_numbers: List[int] = Field(
+        ...,
+        description="Номера сцен для объединения (минимум 2, только подряд).",
+    )
+
+
+class SceneMergeResponse(BaseModel):
+    job_id: UUID
+    scenes: List[SceneResponse]
+
+
 # --- documents listing ---
 class ProcessingJobRef(BaseModel):
     id: UUID
