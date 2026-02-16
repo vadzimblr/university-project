@@ -18,8 +18,8 @@ const emit = defineEmits<{
     <h3 class="comic-title mb-3 text-sm font-semibold">Иллюстрация / Комикс-панель</h3>
 
     <div v-if="scene.status === 'ready' && illustration" class="space-y-3">
-      <div class="panel-frame">
-        <img :src="illustration.imageUrl" alt="illustration" class="h-56 w-full object-cover" />
+      <div class="panel-frame aspect-[3/2] w-full">
+        <img :src="illustration.imageUrl" alt="illustration" class="h-full w-full object-cover" />
       </div>
       <p class="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs font-medium">Caption: Сцена готова к сборке в storybook-последовательность.</p>
       <div class="flex gap-2">
@@ -29,14 +29,14 @@ const emit = defineEmits<{
     </div>
 
     <div v-else-if="scene.status === 'generating'" class="space-y-3">
-      <div class="panel-frame flex h-56 items-center justify-center bg-amber-50 text-amber-800">Генерируем кадр...</div>
+      <div class="panel-frame aspect-[3/2] flex w-full items-center justify-center bg-amber-50 text-amber-800">Генерируем кадр...</div>
     </div>
 
     <div v-else-if="scene.status === 'error'" class="space-y-3">
-      <div class="panel-frame flex h-56 items-center justify-center bg-rose-50 text-rose-700">Ошибка генерации панели</div>
+      <div class="panel-frame aspect-[3/2] flex w-full items-center justify-center bg-rose-50 text-rose-700">Ошибка генерации панели</div>
       <button class="rounded-lg border border-slate-200 bg-rose-50 px-3 py-1.5 text-sm font-semibold text-rose-700" @click="emit('retry', scene.id)">Retry</button>
     </div>
 
-    <div v-else class="panel-frame flex h-56 items-center justify-center text-slate-500">Panel placeholder до готовности</div>
+    <div v-else class="panel-frame aspect-[3/2] flex w-full items-center justify-center text-slate-500">Panel placeholder до готовности</div>
   </section>
 </template>

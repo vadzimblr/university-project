@@ -1,279 +1,160 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import { storySentences } from '@/mock/mockStory';
+import { computed, ref, watch, onMounted } from 'vue';
 import type { Illustration, Scene } from '@/types/models';
 
 const props = defineProps<{
   scene: Scene;
   illustration?: Illustration;
-  minStart: number;
-  maxEnd: number;
+  sentences?: string[];
   hasPrev: boolean;
   hasNext: boolean;
+  mergePrevQueued?: boolean;
+  mergeNextQueued?: boolean;
+  readOnly?: boolean;
 }>();
 
 const emit = defineEmits<{
-  setRange: [sceneId: string, startIdx: number, endIdx: number];
-  split: [sceneId: string, splitAtGlobalSentenceIdx: number];
-  merge: [sceneId: string, direction: 'prev' | 'next'];
+  requestSentences: [];
+  moveSentences: [mode: 'head' | 'tail', count: number, direction: 'prev' | 'next'];
+  mergeScene: [direction: 'prev' | 'next'];
 }>();
 
-const expanded = ref(false);
-const splitIdx = ref<number | null>(null);
-const startValue = ref(props.scene.startIdx);
-const endValue = ref(props.scene.endIdx);
-const activeDropZone = ref<'prev' | 'next' | null>(null);
-const selectedForMove = ref<number[]>([]);
-const defaultHint = 'Ctrl + ЛКМ: выбери несколько предложений по краю. Потом перетащи выделение в PREV/NEXT.';
-const dragHint = ref(defaultHint);
+const selected = ref<number[]>([]);
+const hoverIndex = ref<number | null>(null);
+
+function splitFallback(text: string) {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+const sentencesList = computed(() => (props.sentences && props.sentences.length ? props.sentences : splitFallback(props.scene.text)));
+
+onMounted(() => emit('requestSentences'));
 
 watch(
-  () => props.scene,
-  (next) => {
-    startValue.value = next.startIdx;
-    endValue.value = next.endIdx;
-    splitIdx.value = null;
-    activeDropZone.value = null;
-    selectedForMove.value = [];
-    dragHint.value = defaultHint;
+  () => props.scene.id,
+  () => {
+    selected.value.splice(0, selected.value.length);
+    emit('requestSentences');
   },
-  { deep: true },
 );
 
-const before = computed(() => storySentences.slice(Math.max(0, startValue.value - 2), startValue.value));
-const inside = computed(() => storySentences.slice(startValue.value, endValue.value + 1));
-const after = computed(() => storySentences.slice(endValue.value + 1, endValue.value + 3));
-const maxMovable = computed(() => Math.max(0, inside.value.length - 2));
+function toggleSelect(idx: number, evt: MouseEvent) {
+  if (props.readOnly) return;
+  if (!evt.ctrlKey) return;
+  const pos = selected.value.indexOf(idx);
+  if (pos === -1) selected.value.push(idx);
+  else selected.value.splice(pos, 1);
+}
 
-const selectionSorted = computed(() => [...selectedForMove.value].sort((a, b) => a - b));
-
-const moveSelection = computed(() => {
-  const selected = selectionSorted.value;
-  if (!selected.length) return { mode: null as 'head' | 'tail' | null, count: 0 };
-
-  const head = selected.every((value, index) => value === index);
-  if (head && selected.length <= maxMovable.value) return { mode: 'head' as const, count: selected.length };
-
-  const tailStart = inside.value.length - selected.length;
-  const tail = selected.every((value, index) => value === tailStart + index);
-  if (tail && selected.length <= maxMovable.value) return { mode: 'tail' as const, count: selected.length };
-
-  return { mode: null as 'head' | 'tail' | null, count: 0 };
+const selectionInfo = computed(() => {
+  const list = [...selected.value].sort((a, b) => a - b);
+  if (!list.length) return { mode: null as 'head' | 'tail' | null, count: 0 };
+  const len = sentencesList.value.length;
+  const isHead = list[0] === 0 && list.every((v, i) => v === i);
+  const isTail = list[list.length - 1] === len - 1 && list.every((v, i) => v === len - list.length + i);
+  if (isHead) return { mode: 'head', count: list.length };
+  if (isTail) return { mode: 'tail', count: list.length };
+  return { mode: null, count: 0 };
 });
 
-function commitRange(newStart: number, newEnd: number) {
-  if (newStart >= newEnd) return;
-  emit('setRange', props.scene.id, newStart, newEnd);
-  selectedForMove.value = [];
-}
-
-function toggleSelection(idx: number) {
-  if (!selectedForMove.value.includes(idx)) {
-    selectedForMove.value = [...selectedForMove.value, idx];
-  } else {
-    selectedForMove.value = selectedForMove.value.filter((item) => item !== idx);
-  }
-
-  if (!selectionSorted.value.length) {
-    dragHint.value = defaultHint;
-    return;
-  }
-
-  const state = moveSelection.value;
-  if (!state.mode) {
-    selectedForMove.value = [idx].filter((item) => item === 0 || item === inside.value.length - 1);
-  }
-
-  if (!selectedForMove.value.length) {
-    dragHint.value = 'Можно выделять только крайние непрерывные предложения.';
-    return;
-  }
-
-  const nextState = moveSelection.value;
-  if (nextState.mode === 'head') dragHint.value = `Выделено ${nextState.count} с начала. Перетащи в PREV.`;
-  if (nextState.mode === 'tail') dragHint.value = `Выделено ${nextState.count} с конца. Перетащи в NEXT.`;
-}
-
-function onSentenceClick(event: MouseEvent, localIdx: number) {
-  if (event.ctrlKey) {
-    toggleSelection(localIdx);
-    return;
-  }
-
-  splitIdx.value = startValue.value + localIdx;
-}
-
-function onSentenceDragStart(event: DragEvent, localIdx: number) {
-  const state = moveSelection.value;
-  const fallbackHead = localIdx === 0 ? 1 : 0;
-  const fallbackTail = localIdx === inside.value.length - 1 ? 1 : 0;
-  const count = state.count || fallbackHead || fallbackTail;
-
-  if (state.mode === 'head' || fallbackHead) {
-    if (!props.hasPrev || count > maxMovable.value) {
-      event.preventDefault();
-      return;
-    }
-    event.dataTransfer?.setData('text/plain', JSON.stringify({ mode: 'head', count }));
-    dragHint.value = `Отпусти в PREV: уйдут ${count} предлож.`;
-    return;
-  }
-
-  if (state.mode === 'tail' || fallbackTail) {
-    if (!props.hasNext || count > maxMovable.value) {
-      event.preventDefault();
-      return;
-    }
-    event.dataTransfer?.setData('text/plain', JSON.stringify({ mode: 'tail', count }));
-    dragHint.value = `Отпусти в NEXT: уйдут ${count} предлож.`;
-    return;
-  }
-
-  event.preventDefault();
-}
-
-function onSentenceDragEnd() {
-  activeDropZone.value = null;
-  if (!selectedForMove.value.length) dragHint.value = defaultHint;
-}
-
-function allowDrop(event: DragEvent, zone: 'prev' | 'next') {
-  event.preventDefault();
-  activeDropZone.value = zone;
-}
-
-function onLeaveDropZone() {
-  activeDropZone.value = null;
-}
-
-function parsePayload(raw: string | undefined) {
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as { mode: 'head' | 'tail'; count: number };
-  } catch {
-    return null;
-  }
-}
-
-function onDropToPrev(event: DragEvent) {
-  event.preventDefault();
-  activeDropZone.value = null;
-  const payload = parsePayload(event.dataTransfer?.getData('text/plain'));
-  if (!payload || payload.mode !== 'head' || !props.hasPrev) {
-    dragHint.value = 'В PREV можно переносить только выделение с начала сцены.';
-    return;
-  }
-
-  commitRange(startValue.value + payload.count, endValue.value);
-  dragHint.value = `Готово: ${payload.count} предлож. ушли в предыдущую сцену.`;
-}
-
-function onDropToNext(event: DragEvent) {
-  event.preventDefault();
-  activeDropZone.value = null;
-  const payload = parsePayload(event.dataTransfer?.getData('text/plain'));
-  if (!payload || payload.mode !== 'tail' || !props.hasNext) {
-    dragHint.value = 'В NEXT можно переносить только выделение с конца сцены.';
-    return;
-  }
-
-  commitRange(startValue.value, endValue.value - payload.count);
-  dragHint.value = `Готово: ${payload.count} предлож. ушли в следующую сцену.`;
-}
-
-function isSelected(idx: number) {
-  return selectedForMove.value.includes(idx);
+function onDrop(direction: 'prev' | 'next') {
+  if (props.readOnly) return;
+  const { mode, count } = selectionInfo.value;
+  if (!mode || count === 0) return;
+  if (mode === 'head' && direction === 'next') return;
+  if (mode === 'tail' && direction === 'prev') return;
+  if ((direction === 'prev' && !props.hasPrev) || (direction === 'next' && !props.hasNext)) return;
+  emit('moveSentences', mode, count, direction);
+  selected.value.splice(0, selected.value.length);
 }
 </script>
 
 <template>
   <section class="comic-card space-y-4 bg-white p-5 xl:p-6">
-    <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-      <p class="font-semibold">Редактирование границ</p>
-      <ol class="mt-1 list-decimal pl-5 text-xs text-slate-700">
-        <li><b>Ctrl + ЛКМ</b> выделяет несколько крайних предложений.</li>
-        <li>Выделение с начала дропай в <b>PREV</b>, с конца — в <b>NEXT</b>.</li>
-        <li>Остаётся минимум 2 предложения, середина не переносится.</li>
-      </ol>
-    </div>
-
-    <div class="flex items-center justify-between gap-2">
+    <div class="flex items-start justify-between gap-2">
       <div>
-        <h2 class="comic-title text-2xl font-semibold">{{ scene.title }}</h2>
-        <p class="text-sm text-slate-600">Границы сцены: {{ startValue }}-{{ endValue }}</p>
+        <h2 class="comic-title text-2xl font-semibold">Сцена {{ scene.sceneNumber }}</h2>
+        <p class="text-sm text-slate-600">Всего предложений: {{ sentencesList.length || '—' }}</p>
       </div>
-      <span class="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-semibold">{{ scene.status }}</span>
     </div>
 
-    <div class="panel-frame">
-      <img v-if="illustration" :src="illustration.imageUrl" alt="scene illustration" class="h-80 w-full object-cover" />
-      <div v-else class="flex h-80 items-center justify-center bg-slate-200 text-slate-500">Иллюстрация пока не готова</div>
+    <div class="panel-frame aspect-[3/2] w-full">
+      <img v-if="illustration?.imageUrl" :src="illustration.imageUrl" alt="scene illustration" class="h-full w-full object-cover" />
+      <div v-else-if="scene.status === 'generating'" class="flex h-full w-full items-center justify-center bg-amber-50 text-amber-800">Генерируем кадр...</div>
+      <div v-else-if="scene.status === 'error'" class="flex h-full w-full items-center justify-center bg-rose-50 text-rose-700">Ошибка генерации панели</div>
+      <div v-else class="flex h-full w-full items-center justify-center bg-slate-100 text-slate-500">Иллюстрация пока не готова</div>
     </div>
 
-    <div class="rounded-xl border border-slate-200 bg-white p-3">
-      <p class="text-sm font-semibold">Подсказка</p>
-      <p class="mt-1 text-xs text-slate-600">{{ dragHint }}</p>
-    </div>
-
-    <div class="speech-bubble">
-      <button class="mb-2 text-sm font-semibold text-blue-700" @click="expanded = !expanded">{{ expanded ? 'Свернуть текст' : 'Развернуть текст' }}</button>
-      <p class="text-sm leading-7 text-slate-700" :class="expanded ? '' : 'line-clamp-3'">{{ scene.text }}</p>
-    </div>
-
-    <div class="grid gap-3 xl:grid-cols-3">
-      <div
-        class="story-strip border-2 border-dashed"
-        :class="[hasPrev ? 'border-emerald-700 bg-emerald-50' : 'border-slate-300 bg-slate-50', activeDropZone === 'prev' ? 'ring-2 ring-emerald-500' : '']"
-        @dragover="allowDrop($event, 'prev')"
-        @dragleave="onLeaveDropZone"
-        @drop="onDropToPrev"
-      >
-        <p class="mb-1 text-xs font-bold uppercase text-slate-500">Контекст до · PREV</p>
-        <p v-if="hasPrev" class="mb-1 text-[11px] font-semibold text-emerald-700">Drop выделения начала сцены</p>
-        <p class="text-xs text-slate-600">{{ before.join(' ') || '—' }}</p>
+    <div class="rounded-xl border border-slate-200 bg-white p-4">
+      <div class="flex items-center justify-between">
+        <p class="text-sm font-semibold">Текст сцены</p>
+        <button class="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-semibold" @click="emit('requestSentences')">Обновить</button>
       </div>
 
-    <div class="story-strip border-slate-200 bg-slate-50 xl:col-span-1">
-        <p class="mb-1 text-xs font-semibold uppercase text-slate-600">Текущая сцена (Ctrl+ЛКМ / drag / клик для split)</p>
-        <ul class="max-h-80 space-y-1 overflow-y-auto">
-          <li
-            v-for="(sentence, localIdx) in inside"
-            :key="`${scene.id}-${localIdx}`"
-            class="cursor-pointer rounded border border-slate-200 bg-white px-2 py-1 text-sm"
-            :class="[
-              splitIdx === startValue + localIdx ? 'bg-amber-100 border-amber-200' : '',
-              isSelected(localIdx) ? 'border-emerald-300 bg-emerald-50' : '',
-              localIdx === 0 ? 'border-l-4 border-l-emerald-400' : '',
-              localIdx === inside.length - 1 ? 'border-r-4 border-r-slate-400' : '',
-            ]"
-            :draggable="localIdx === 0 || localIdx === inside.length - 1 || isSelected(localIdx)"
-            @dragstart="onSentenceDragStart($event, localIdx)"
-            @dragend="onSentenceDragEnd"
-            @click="onSentenceClick($event, localIdx)"
-          >
-            <span class="mr-1 text-[10px] text-slate-400">{{ startValue + localIdx }}.</span>
-            {{ sentence }}
-          </li>
-        </ul>
+      <div class="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-600">
+        <p class="font-semibold text-slate-700">Как редактировать</p>
+        <p>Ctrl + ЛКМ — выделить несколько предложений подряд в начале или конце сцены.</p>
+        <p>После выделения появятся кнопки переноса в соседнюю сцену.</p>
+        <p v-if="readOnly" class="mt-1 text-amber-700">Редактирование отключено: документ подтвержден.</p>
+      </div>
+
+      <div class="mt-3 text-[15px] leading-7 text-slate-700">
+        <span
+          v-for="(sentence, idx) in sentencesList"
+          :key="idx"
+          class="cursor-pointer rounded-md px-1 py-0.5 transition"
+          :class="[
+            selected.includes(idx) ? 'bg-emerald-100 ring-1 ring-emerald-300' : '',
+            hoverIndex === idx ? 'bg-slate-100' : '',
+          ]"
+          @mouseenter="hoverIndex = idx"
+          @mouseleave="hoverIndex = null"
+          @click="toggleSelect(idx, $event as MouseEvent)"
+        >
+          {{ sentence }}
+        </span>
+        <span v-if="!sentencesList.length" class="text-xs text-slate-500">Нет данных, попробуйте обновить.</span>
       </div>
 
       <div
-        class="story-strip border-2 border-dashed"
-        :class="[hasNext ? 'border-violet-700 bg-violet-50' : 'border-slate-300 bg-slate-50', activeDropZone === 'next' ? 'ring-2 ring-violet-500' : '']"
-        @dragover="allowDrop($event, 'next')"
-        @dragleave="onLeaveDropZone"
-        @drop="onDropToNext"
+        v-if="selectionInfo.mode"
+        class="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs"
       >
-        <p class="mb-1 text-xs font-bold uppercase text-slate-500">Контекст после · NEXT</p>
-        <p v-if="hasNext" class="mb-1 text-[11px] font-semibold text-violet-700">Drop выделения конца сцены</p>
-        <p class="text-xs text-slate-600">{{ after.join(' ') || '—' }}</p>
+        <p class="font-semibold">
+          Выбрано {{ selectionInfo.count }} ({{ selectionInfo.mode === 'head' ? 'начало' : 'конец' }} сцены)
+        </p>
+        <button class="rounded border border-slate-200 bg-white px-3 py-1 text-sm font-semibold" :disabled="readOnly || selectionInfo.mode !== 'head' || !hasPrev" @click="onDrop('prev')">
+          В предыдущую сцену
+        </button>
+        <button class="rounded border border-slate-200 bg-white px-3 py-1 text-sm font-semibold" :disabled="readOnly || selectionInfo.mode !== 'tail' || !hasNext" @click="onDrop('next')">
+          В следующую сцену
+        </button>
       </div>
-    </div>
 
-    <div class="flex flex-wrap gap-2">
-      <button class="kaboom-btn" :disabled="splitIdx === null" @click="splitIdx !== null && emit('split', scene.id, splitIdx)">Split по выделенному</button>
-      <button class="rounded border border-slate-200 bg-white px-2 py-1 text-sm font-semibold" @click="emit('merge', scene.id, 'prev')">Merge prev</button>
-      <button class="rounded border border-slate-200 bg-white px-2 py-1 text-sm font-semibold" @click="emit('merge', scene.id, 'next')">Merge next</button>
+      <div class="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white p-2 text-xs">
+        <p class="font-semibold text-slate-700">Слить сцену</p>
+        <button
+          class="rounded border px-3 py-1 text-sm font-semibold"
+          :class="mergePrevQueued ? 'border-amber-300 bg-amber-100 text-amber-900' : 'border-slate-200 bg-white'"
+          :disabled="readOnly || !hasPrev"
+          @click="emit('mergeScene', 'prev')"
+        >
+          {{ mergePrevQueued ? 'Отменить с предыдущей' : 'С предыдущей' }}
+        </button>
+        <button
+          class="rounded border px-3 py-1 text-sm font-semibold"
+          :class="mergeNextQueued ? 'border-amber-300 bg-amber-100 text-amber-900' : 'border-slate-200 bg-white'"
+          :disabled="readOnly || !hasNext"
+          @click="emit('mergeScene', 'next')"
+        >
+          {{ mergeNextQueued ? 'Отменить со следующей' : 'Со следующей' }}
+        </button>
+        <span class="text-[11px] text-slate-500">Слияние применится после сохранения изменений.</span>
+        <span v-if="mergePrevQueued || mergeNextQueued" class="text-[11px] text-slate-500">Нажмите еще раз, чтобы отменить.</span>
+      </div>
     </div>
   </section>
 </template>
