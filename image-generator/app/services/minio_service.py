@@ -1,7 +1,9 @@
 import logging
 import base64
+import os
 from io import BytesIO
 from typing import Optional
+from urllib.parse import urlparse
 from minio import Minio
 from minio.error import S3Error
 
@@ -14,6 +16,10 @@ class MinioService:
         secret_key: str,
         secure: bool = False
     ):
+        self.endpoint = endpoint
+        self.access_key = access_key
+        self.secret_key = secret_key
+        self.secure = secure
         self.client = Minio(
             endpoint,
             access_key=access_key,
@@ -113,6 +119,68 @@ class MinioService:
         except S3Error as e:
             self.logger.error(f"Failed to generate presigned URL for {object_name}: {e}")
             raise
+
+    def get_presigned_public_url(
+        self,
+        bucket_name: str,
+        object_name: str,
+        expires_seconds: int = 3600
+    ) -> str:
+        public_client = self._get_public_client(bucket_name=bucket_name)
+        if not public_client:
+            return self.get_presigned_url(
+                bucket_name=bucket_name,
+                object_name=object_name,
+                expires_seconds=expires_seconds
+            )
+
+        try:
+            from datetime import timedelta
+            return public_client.presigned_get_object(
+                bucket_name,
+                object_name,
+                expires=timedelta(seconds=expires_seconds)
+            )
+        except S3Error as e:
+            self.logger.error(f"Failed to generate public presigned URL for {object_name}: {e}")
+            raise
+
+    @staticmethod
+    def _parse_secure(value: Optional[str], default_secure: bool) -> bool:
+        if value is None:
+            return default_secure
+        return value.lower() == "true"
+
+    def _get_public_client(self, bucket_name: Optional[str] = None) -> Optional[Minio]:
+        raw = os.getenv("MINIO_PUBLIC_BASE_URL") or os.getenv("MINIO_PUBLIC_ENDPOINT")
+        if not raw:
+            return None
+
+        if "://" in raw:
+            parsed = urlparse(raw)
+            endpoint = parsed.netloc or parsed.path
+            secure = parsed.scheme == "https"
+        else:
+            endpoint = raw
+            secure = self._parse_secure(os.getenv("MINIO_PUBLIC_SECURE"), self.secure)
+
+        if not endpoint:
+            return None
+
+        region = os.getenv("MINIO_PUBLIC_REGION") or os.getenv("MINIO_REGION")
+        if not region and bucket_name:
+            try:
+                region = self.client.get_bucket_location(bucket_name) or "us-east-1"
+            except (S3Error, AttributeError):
+                region = "us-east-1"
+
+        return Minio(
+            endpoint,
+            access_key=self.access_key,
+            secret_key=self.secret_key,
+            secure=secure,
+            region=region
+        )
     
     def delete_object(self, bucket_name: str, object_name: str) -> None:
         try:
@@ -129,4 +197,3 @@ class MinioService:
         except S3Error as e:
             self.logger.error(f"Failed to list objects in {bucket_name}: {e}")
             raise
-
