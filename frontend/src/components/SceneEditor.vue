@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted } from 'vue';
-import type { Scene } from '@/types/models';
+import type { Illustration, Scene } from '@/types/models';
 
 const props = defineProps<{
   scene: Scene;
+  illustration?: Illustration;
   sentences?: string[];
   hasPrev: boolean;
   hasNext: boolean;
@@ -80,8 +81,11 @@ function onDrop(direction: 'prev' | 'next') {
       </div>
     </div>
 
-    <div class="panel-frame">
-      <div class="flex h-64 items-center justify-center bg-slate-100 text-slate-500">Иллюстрация пока не готова</div>
+    <div class="panel-frame aspect-[3/2] w-full">
+      <img v-if="illustration?.imageUrl" :src="illustration.imageUrl" alt="scene illustration" class="h-full w-full object-cover" />
+      <div v-else-if="scene.status === 'generating'" class="flex h-full w-full items-center justify-center bg-amber-50 text-amber-800">Генерируем кадр...</div>
+      <div v-else-if="scene.status === 'error'" class="flex h-full w-full items-center justify-center bg-rose-50 text-rose-700">Ошибка генерации панели</div>
+      <div v-else class="flex h-full w-full items-center justify-center bg-slate-100 text-slate-500">Иллюстрация пока не готова</div>
     </div>
 
     <div class="rounded-xl border border-slate-200 bg-white p-4">

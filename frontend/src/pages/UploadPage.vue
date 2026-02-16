@@ -107,8 +107,8 @@ function openDocument(docId: string, statusRaw: string) {
   <main class="page-fade mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-4 py-10 lg:px-6">
     <section class="comic-card halftone p-8">
       <p class="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-500">Storybook AI Studio</p>
-      <h1 class="comic-title mt-3 text-3xl font-semibold md:text-4xl">Преврати рассказ из PDF в визуальную историю</h1>
-      <p class="mt-3 max-w-3xl text-slate-600">Собери сцены с правильными границами, ритмом и атмосферой, чтобы история читалась как цельный storybook.</p>
+      <h1 class="comic-title mt-3 text-3xl font-semibold md:text-4xl">Проект по визуализации сюжетов из PDF</h1>
+      <p class="mt-3 max-w-3xl text-slate-600">Инструмент для разметки сцен и подготовки иллюстраций для дальнейшего анализа и сборки последовательности.</p>
     </section>
 
     <section

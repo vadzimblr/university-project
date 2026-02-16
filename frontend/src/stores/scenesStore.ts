@@ -2,9 +2,11 @@ import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import type { Scene, Illustration } from '@/types/models';
 import { fetchScenes, fetchSceneSentences, patchScenes, approveJob, mergeScenes } from '@/api/sceneSplitter';
+import { fetchSceneImage } from '@/api/imageGenerator';
 
 export const useScenesStore = defineStore('scenes', () => {
   const jobId = ref<string | null>(null);
+  const storyUuid = ref<string | null>(null);
   const scenes = ref<Scene[]>([]);
   const illustrations = ref<Record<string, Illustration>>({});
   const sentencesMap = ref<Record<number, string[]>>({});
@@ -48,13 +50,19 @@ export const useScenesStore = defineStore('scenes', () => {
   const canGenerateImages = computed(() => false);
   const segmentationApproved = ref(false);
   const isGeneratingAll = ref(false);
+  const imagePollingActive = ref(false);
+
+  let pollingTimer: ReturnType<typeof setInterval> | null = null;
+  let pollInFlight = false;
+  let pollingStory: string | null = null;
 
   function setListPage(page: number) {
     listPage.value = Math.min(Math.max(1, page), totalPages.value);
   }
 
-  async function loadScenes(targetJobId: string) {
+  async function loadScenes(targetJobId: string, targetStoryUuid?: string) {
     jobId.value = targetJobId;
+    if (targetStoryUuid) storyUuid.value = targetStoryUuid;
     loading.value = true;
     error.value = null;
     try {
@@ -69,6 +77,7 @@ export const useScenesStore = defineStore('scenes', () => {
         status: 'pending',
       }));
       listPage.value = 1;
+      illustrations.value = {};
       sentencesMap.value = {};
       dirtyTexts.value = {};
       pendingMergeLinks.value = {};
@@ -82,8 +91,11 @@ export const useScenesStore = defineStore('scenes', () => {
   }
 
   function resetScenes() {
+    stopImagePolling();
     jobId.value = null;
+    storyUuid.value = null;
     scenes.value = [];
+    illustrations.value = {};
     sentencesMap.value = {};
     dirtyTexts.value = {};
     pendingMergeLinks.value = {};
@@ -233,6 +245,74 @@ export const useScenesStore = defineStore('scenes', () => {
     segmentationApproved.value = true;
   }
 
+  function startImagePolling(targetStoryUuid?: string, intervalMs = 8000) {
+    if (targetStoryUuid) storyUuid.value = targetStoryUuid;
+    if (!storyUuid.value) return;
+    if (pollingStory && pollingStory !== storyUuid.value) {
+      stopImagePolling();
+    }
+    pollingStory = storyUuid.value;
+    markScenesGenerating();
+    if (pollingTimer) return;
+    imagePollingActive.value = true;
+    pollImagesOnce();
+    pollingTimer = setInterval(pollImagesOnce, intervalMs);
+  }
+
+  function stopImagePolling() {
+    if (pollingTimer) clearInterval(pollingTimer);
+    pollingTimer = null;
+    pollInFlight = false;
+    imagePollingActive.value = false;
+    pollingStory = null;
+  }
+
+  function markScenesGenerating() {
+    for (const scene of scenes.value) {
+      if (scene.status && scene.status !== 'pending' && scene.status !== 'approved') continue;
+      if (scene.status === 'ready') continue;
+      scene.status = 'generating';
+    }
+  }
+
+  async function pollImagesOnce() {
+    if (pollInFlight) return;
+    if (!storyUuid.value) return;
+    if (!scenes.value.length) {
+      return;
+    }
+    const targets = scenes.value.filter((scene) => scene.status !== 'ready');
+    if (!targets.length) {
+      stopImagePolling();
+      return;
+    }
+    pollInFlight = true;
+    try {
+      await runWithConcurrency(targets, 4, async (scene) => {
+        const response = await fetchSceneImage(storyUuid.value as string, scene.sceneNumber).catch((err) => {
+          console.warn('Image fetch failed', err);
+          return null;
+        });
+        if (!response?.image?.url) return;
+        const key = scene.id;
+        const imageId = String(response.image.id ?? `${storyUuid.value}-${scene.sceneNumber}`);
+        const existing = illustrations.value[key];
+        if (!existing || existing.id !== imageId || existing.imageUrl !== response.image.url) {
+          illustrations.value[key] = {
+            id: imageId,
+            sceneId: key,
+            imageUrl: response.image.url,
+            createdAt: response.image.created_at ?? new Date().toISOString(),
+            promptPreview: response.image.prompt_text ?? undefined,
+          };
+        }
+        scene.status = 'ready';
+      });
+    } finally {
+      pollInFlight = false;
+    }
+  }
+
   return {
     jobId,
     scenes,
@@ -252,6 +332,7 @@ export const useScenesStore = defineStore('scenes', () => {
     segmentationApproved,
     canGenerateImages,
     isGeneratingAll,
+    imagePollingActive,
     setListPage,
     loadScenes,
     resetScenes,
@@ -264,6 +345,8 @@ export const useScenesStore = defineStore('scenes', () => {
     syncSceneText,
     saveAll,
     approveCurrentJob,
+    startImagePolling,
+    stopImagePolling,
     pendingMergeCount,
     pendingMergeSceneNumbers,
     pendingMergeSceneNumbersAuto,
@@ -316,4 +399,16 @@ function range(start: number, endInclusive: number) {
 function estimateSentenceCount(text: string) {
   if (!text) return 0;
   return text.split(/(?<=[.!?])\s+/).filter(Boolean).length;
+}
+
+async function runWithConcurrency<T>(items: T[], limit: number, handler: (item: T) => Promise<void>) {
+  const queue = [...items];
+  const workers = Array.from({ length: Math.min(limit, queue.length) }, async () => {
+    while (queue.length) {
+      const item = queue.shift();
+      if (!item) return;
+      await handler(item);
+    }
+  });
+  await Promise.all(workers);
 }
