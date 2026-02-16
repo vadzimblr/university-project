@@ -33,6 +33,10 @@ const emit = defineEmits<{
       </span>
     </div>
 
+    <div v-if="illustration?.imageUrl" class="mb-2 overflow-hidden rounded-lg border border-slate-200">
+      <img :src="illustration.imageUrl" alt="scene thumbnail" class="h-20 w-full object-cover" />
+    </div>
+
     <p class="text-xs text-slate-700 line-clamp-3">{{ scene.text }}</p>
   </article>
 </template>

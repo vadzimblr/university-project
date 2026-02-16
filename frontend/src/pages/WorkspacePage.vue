@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import Topbar from '@/components/Topbar.vue';
 import SceneList from '@/components/SceneList.vue';
@@ -48,8 +48,11 @@ async function initData() {
     return;
   }
   if (job.id) {
-    await scenes.loadScenes(job.id);
+    await scenes.loadScenes(job.id, id);
     ui.selectedSceneId = scenes.scenes[0]?.id ?? null;
+    if (isApproved.value) {
+      scenes.startImagePolling(id);
+    }
   }
 }
 
@@ -60,6 +63,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeys);
+  scenes.stopImagePolling();
 });
 
 const selectedScene = computed(() => scenes.scenes.find((scene) => scene.id === ui.selectedSceneId) ?? null);
@@ -81,6 +85,19 @@ const isApproved = computed(() => {
   return normalizeStatus(raw) === 'approved';
 });
 
+watch(
+  () => isApproved.value,
+  (approved) => {
+    if (approved) {
+      const id = String(route.params.id);
+      scenes.startImagePolling(id);
+    } else {
+      scenes.stopImagePolling();
+    }
+  },
+  { immediate: true },
+);
+
 function applyMergeShort() {
   scenes.queueMergeShortScenes(mergeThreshold.value);
 }
@@ -91,6 +108,9 @@ async function confirmApprove() {
   saving.value = true;
   try {
     await scenes.approveCurrentJob();
+    const job = docs.activeDocument?.processingJobs?.[0];
+    if (job) job.status = 'approved';
+    scenes.startImagePolling(String(route.params.id));
     showApproveConfirm.value = false;
     if (skipApproveConfirm.value) localStorage.setItem('skipApproveConfirm', '1');
   } catch (e) {
@@ -227,6 +247,7 @@ function onKeys(event: KeyboardEvent) {
         <div v-if="workspaceMode === 'editor' && selectedScene">
           <SceneEditor
             :scene="selectedScene"
+            :illustration="scenes.illustrations[selectedScene.id]"
             :sentences="scenes.sentencesMap[selectedScene.sceneNumber]"
             :has-prev="hasPrevScene"
             :has-next="hasNextScene"
