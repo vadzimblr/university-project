@@ -26,10 +26,7 @@ celery_app = Celery(
     broker=broker_url,
     backend=None,
     include=[
-        "app.services.tasks.extract_text_task",
-        "app.services.tasks.scene_splitting_task",
-        "app.services.tasks.save_scenes_task",
-        "app.services.tasks.publish_outbox_events_task",
+        "infrastructure.celery.tasks.scene_segmentation_task",
     ]
 )
 
@@ -38,24 +35,19 @@ celery_app.conf.update(
         '*.pdf.*': {'queue': TASK_PDF_QUEUE, 'routing_key': f'{TASK_ROUTING_PREFIX}.pdf'},
         '*': {'queue': TASK_DEFAULT_QUEUE, 'routing_key': f'{TASK_ROUTING_PREFIX}.default'},
     },
-    
     task_queues=[
         Queue(TASK_PDF_QUEUE, task_exchange, routing_key=f'{TASK_ROUTING_PREFIX}.pdf', durable=True),
         Queue(TASK_DEFAULT_QUEUE, task_exchange, routing_key=f'{TASK_ROUTING_PREFIX}.default', durable=True),
     ],
-
     task_default_exchange=TASK_EXCHANGE_NAME,
     task_default_exchange_type='topic',
     task_default_routing_key=f'{TASK_ROUTING_PREFIX}.default',
     task_default_queue=TASK_DEFAULT_QUEUE,
-
     task_acks_late=True,
     worker_prefetch_multiplier=int(os.getenv('CELERY_WORKER_CONCURRENCY', 2)),
     task_reject_on_worker_lost=True,
-    
     task_create_missing_queues=False,
     task_ignore_result=True,
-    
     task_serializer='json',
     accept_content=['json'],
     result_serializer='json',
@@ -64,25 +56,12 @@ celery_app.conf.update(
 )
 
 celery_app.conf.task_routes.update({
-    'extract_text_task': {'queue': TASK_PDF_QUEUE, 'routing_key': f'{TASK_ROUTING_PREFIX}.pdf'},
-    'scene_splitting_task': {'queue': TASK_DEFAULT_QUEUE, 'routing_key': f'{TASK_ROUTING_PREFIX}.default'},
-    'save_scenes_task': {'queue': TASK_DEFAULT_QUEUE, 'routing_key': f'{TASK_ROUTING_PREFIX}.default'},
+    'scene_segmentation_task': {'queue': TASK_PDF_QUEUE, 'routing_key': f'{TASK_ROUTING_PREFIX}.pdf'},
 })
 
 if os.getenv('CELERY_ENABLE_MONITORING', 'false').lower() == 'true':
     celery_app.conf.worker_send_task_events = True
     celery_app.conf.task_send_sent_event = True
-
-celery_app.conf.beat_schedule = {
-    'publish-outbox-events-every-3-seconds': {
-        'task': 'publish_outbox_events',
-        'schedule': 0.3,
-    },
-    'cleanup-old-events-daily': {
-        'task': 'cleanup_old_outbox_events',
-        'schedule': 3600,
-    },
-}
 
 def get_broker_url():
     return broker_url
